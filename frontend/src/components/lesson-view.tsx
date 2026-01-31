@@ -27,7 +27,10 @@ export default function LessonView({ documentId, initialTopic = "General Overvie
     const generateLesson = async () => {
         setLoading(true)
         try {
-            const res = await api.post('/generate/lesson', { topic })
+            const res = await api.post('/generate/lesson', {
+                topic,
+                document_id: documentId
+            })
             setLesson(res.data)
         } catch (e) {
             console.error(e)
@@ -36,8 +39,8 @@ export default function LessonView({ documentId, initialTopic = "General Overvie
         }
     }
 
-    // Auto-generate on mount/topic change (optional)
-    // useEffect(() => { generateLesson() }, [])
+    // Auto-load if exists or generate new
+    useEffect(() => { generateLesson() }, [])
 
     if (!lesson && !loading) {
         return (

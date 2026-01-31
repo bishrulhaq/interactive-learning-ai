@@ -31,19 +31,24 @@ async def process_pdf(file: UploadFile, db: Session):
         # 4. Chunk Text
         chunks = chunk_text(text)
         
-        # 5. Generate Embeddings & Store
+        # 5. Generate Embeddings & Store in Batches
         embedding_model = get_embeddings_model()
-        vectors = embedding_model.embed_documents(chunks)
-        
-        # 6. Save Chunks to DB
-        for i, (chunk_text_content, vector) in enumerate(zip(chunks, vectors)):
-            db_chunk = DocumentChunk(
-                document_id=db_document.id,
-                content=chunk_text_content,
-                chunk_index=i,
-                embedding=vector # pgvector handles list -> vector
-            )
-            db.add(db_chunk)
+
+        BATCH_SIZE = 50 # Adjust based on rate limits
+        for i in range(0, len(chunks), BATCH_SIZE):
+            batch_chunks = chunks[i:i + BATCH_SIZE]
+            batch_vectors = embedding_model.embed_documents(batch_chunks)
+            
+            for j, (chunk_text_content, vector) in enumerate(zip(batch_chunks, batch_vectors)):
+                db_chunk = DocumentChunk(
+                    document_id=db_document.id,
+                    content=chunk_text_content,
+                    chunk_index=i + j,
+                    embedding=vector
+                )
+                db.add(db_chunk)
+            # Commit after each batch to save progress and free memory
+            db.commit()
         
         db_document.status = "completed"
         db.commit()

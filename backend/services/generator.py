@@ -9,9 +9,9 @@ from backend.core.config import settings
 
 llm = ChatOpenAI(model="gpt-4o", temperature=0.7, openai_api_key=settings.OPENAI_API_KEY)
 
-def generate_lesson_plan(topic: str, db: Session) -> LessonPlan:
+def generate_lesson_plan(topic: str, document_id: int, db: Session) -> LessonPlan:
     # 1. Retrieve context
-    chunks = search_documents(topic, db, k=8)
+    chunks = search_documents(topic, document_id, db, k=8)
     context = "\n".join([c.content for c in chunks])
     
     # 2. Structured generation
@@ -25,8 +25,8 @@ def generate_lesson_plan(topic: str, db: Session) -> LessonPlan:
     chain = prompt | structured_llm
     return chain.invoke({"context": context, "topic": topic})
 
-def generate_flashcards(topic: str, db: Session) -> FlashcardSet:
-    chunks = search_documents(topic, db, k=5)
+def generate_flashcards(topic: str, document_id: int, db: Session) -> FlashcardSet:
+    chunks = search_documents(topic, document_id, db, k=5)
     context = "\n".join([c.content for c in chunks])
     
     structured_llm = llm.with_structured_output(FlashcardSet)
@@ -39,8 +39,8 @@ def generate_flashcards(topic: str, db: Session) -> FlashcardSet:
     chain = prompt | structured_llm
     return chain.invoke({"context": context, "topic": topic})
 
-def generate_quiz(topic: str, db: Session) -> Quiz:
-    chunks = search_documents(topic, db, k=5)
+def generate_quiz(topic: str, document_id: int, db: Session) -> Quiz:
+    chunks = search_documents(topic, document_id, db, k=5)
     context = "\n".join([c.content for c in chunks])
     
     structured_llm = llm.with_structured_output(Quiz)

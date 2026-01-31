@@ -9,13 +9,14 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar'
 import { Card } from '@/components/ui/card'
 import api from '@/lib/api'
 import { cn } from '@/lib/utils'
+import ReactMarkdown from 'react-markdown'
 
 interface Message {
     role: 'user' | 'assistant'
     content: string
 }
 
-export default function ChatInterface() {
+export default function ChatInterface({ documentId }: { documentId: string }) {
     const [messages, setMessages] = useState<Message[]>([
         { role: 'assistant', content: 'Hello! I can help you understand your uploaded documents. Ask me anything!' }
     ])
@@ -24,10 +25,29 @@ export default function ChatInterface() {
     const scrollRef = useRef<HTMLDivElement>(null)
 
     useEffect(() => {
+        fetchMessages()
+    }, [documentId])
+
+    useEffect(() => {
         if (scrollRef.current) {
-            // scrollRef.current.scrollIntoView({ behavior: "smooth" })
+            scrollRef.current.scrollIntoView({ behavior: "smooth" })
         }
     }, [messages])
+
+    const fetchMessages = async () => {
+        try {
+            const res = await api.get(`/chat/history/${documentId}`)
+            const history = res.data.map((msg: any) => ({
+                role: msg.role,
+                content: msg.content
+            }))
+            if (history.length > 0) {
+                setMessages(history)
+            }
+        } catch (err) {
+            console.error("Failed to fetch chat history", err)
+        }
+    }
 
     const handleSend = async () => {
         if (!input.trim() || loading) return
@@ -39,7 +59,8 @@ export default function ChatInterface() {
 
         try {
             const response = await api.post('/chat', {
-                message: input
+                message: userMsg.content,
+                document_id: documentId
             })
 
             const assistantMsg: Message = { role: 'assistant', content: response.data.answer }
@@ -61,7 +82,7 @@ export default function ChatInterface() {
                 </h2>
             </div>
 
-            <ScrollArea className="flex-1 p-4">
+            <ScrollArea className="flex-1 p-4 min-h-0">
                 <div className="space-y-4 max-w-3xl mx-auto">
                     {messages.map((msg, i) => (
                         <div
@@ -82,10 +103,10 @@ export default function ChatInterface() {
                                     "p-3 rounded-lg text-sm max-w-[80%]",
                                     msg.role === 'user'
                                         ? "bg-blue-600 text-white rounded-tr-none"
-                                        : "bg-white border shadow-sm text-slate-800 rounded-tl-none"
+                                        : "bg-white border shadow-sm text-slate-800 rounded-tl-none prose prose-sm max-w-none dark:prose-invert"
                                 )}
                             >
-                                {msg.content}
+                                <ReactMarkdown>{msg.content}</ReactMarkdown>
                             </div>
                         </div>
                     ))}

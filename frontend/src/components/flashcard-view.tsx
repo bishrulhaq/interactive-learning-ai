@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Loader2, RefreshCw } from 'lucide-react'
@@ -11,17 +11,23 @@ interface Flashcard {
     front: string
     back: string
 }
-
 export default function FlashcardView({ documentId, initialTopic = "Key Concepts" }: { documentId: string, initialTopic?: string }) {
     const [cards, setCards] = useState<Flashcard[]>([])
     const [loading, setLoading] = useState(false)
     const [flipped, setFlipped] = useState<number | null>(null)
 
+    useEffect(() => {
+        generateCards()
+    }, [documentId])
+
     const generateCards = async () => {
         setLoading(true)
         setCards([])
         try {
-            const res = await api.post('/generate/flashcards', { topic: initialTopic })
+            const res = await api.post('/generate/flashcards', {
+                topic: initialTopic,
+                document_id: documentId
+            })
             setCards(res.data.cards)
         } catch (e) {
             console.error(e)
@@ -62,21 +68,34 @@ export default function FlashcardView({ documentId, initialTopic = "Key Concepts
                 {cards.map((card, idx) => (
                     <div
                         key={idx}
-                        className="group h-64 perspective cursor-pointer"
+                        className="group h-64 cursor-pointer"
+                        style={{ perspective: "1000px" }}
                         onClick={() => setFlipped(flipped === idx ? null : idx)}
                     >
-                        <div className={cn(
-                            "relative w-full h-full duration-500 preserve-3d transition-transform",
-                            flipped === idx ? "rotate-y-180" : ""
-                        )}>
+                        <div
+                            className="relative w-full h-full duration-500 transition-transform"
+                            style={{
+                                transformStyle: "preserve-3d",
+                                transform: flipped === idx ? "rotateY(180deg)" : "rotateY(0deg)"
+                            }}
+                        >
                             {/* Front */}
-                            <Card className="absolute w-full h-full backface-hidden flex items-center justify-center p-6 text-center bg-white hover:border-blue-400 transition-colors">
+                            <Card
+                                className="absolute w-full h-full flex items-center justify-center p-6 text-center bg-white hover:border-blue-400 transition-colors"
+                                style={{ backfaceVisibility: "hidden" }}
+                            >
                                 <p className="font-semibold text-lg">{card.front}</p>
                                 <span className="absolute bottom-4 text-xs text-slate-400">Click to flip</span>
                             </Card>
 
                             {/* Back */}
-                            <Card className="absolute w-full h-full backface-hidden rotate-y-180 flex items-center justify-center p-6 text-center bg-blue-50 border-blue-200">
+                            <Card
+                                className="absolute w-full h-full flex items-center justify-center p-6 text-center bg-blue-50 border-blue-200"
+                                style={{
+                                    backfaceVisibility: "hidden",
+                                    transform: "rotateY(180deg)"
+                                }}
+                            >
                                 <p className="text-slate-800">{card.back}</p>
                             </Card>
                         </div>

@@ -1,5 +1,5 @@
 
-from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, func, Enum
+from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey, func, Enum, JSON
 from sqlalchemy.orm import relationship
 from pgvector.sqlalchemy import Vector
 from backend.database import Base
@@ -15,6 +15,21 @@ class Document(Base):
     status = Column(String, default="pending") # pending, processing, completed, failed
 
     chunks = relationship("DocumentChunk", back_populates="document", cascade="all, delete-orphan")
+    messages = relationship("Message", back_populates="document", cascade="all, delete-orphan")
+    lessons = relationship("GeneratedLesson", back_populates="document", cascade="all, delete-orphan")
+    flashcards = relationship("GeneratedFlashcard", back_populates="document", cascade="all, delete-orphan")
+    quizzes = relationship("GeneratedQuiz", back_populates="document", cascade="all, delete-orphan")
+
+class GeneratedQuiz(Base):
+    __tablename__ = "generated_quizzes"
+
+    id = Column(Integer, primary_key=True, index=True)
+    document_id = Column(Integer, ForeignKey("documents.id"))
+    topic = Column(String)
+    quiz_content = Column(JSON) # Stores the full Quiz JSON
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    document = relationship("Document", back_populates="quizzes")
 
 class DocumentChunk(Base):
     __tablename__ = "document_chunks"
@@ -34,3 +49,36 @@ class DocumentChunk(Base):
     embedding = Column(Vector(1536)) 
 
     document = relationship("Document", back_populates="chunks")
+
+class Message(Base):
+    __tablename__ = "messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    document_id = Column(Integer, ForeignKey("documents.id"))
+    role = Column(String) # user, assistant
+    content = Column(Text)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    document = relationship("Document", back_populates="messages")
+
+class GeneratedLesson(Base):
+    __tablename__ = "generated_lessons"
+
+    id = Column(Integer, primary_key=True, index=True)
+    document_id = Column(Integer, ForeignKey("documents.id"))
+    topic = Column(String)
+    content = Column(JSON) # Stores the full LessonPlan JSON
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    document = relationship("Document", back_populates="lessons")
+
+class GeneratedFlashcard(Base):
+    __tablename__ = "generated_flashcards"
+
+    id = Column(Integer, primary_key=True, index=True)
+    document_id = Column(Integer, ForeignKey("documents.id"))
+    topic = Column(String)
+    flashcards = Column(JSON) # Stores list of cards
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    document = relationship("Document", back_populates="flashcards")
