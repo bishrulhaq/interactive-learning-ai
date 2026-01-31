@@ -1,26 +1,27 @@
-"use client"
+'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Loader2, RefreshCw } from 'lucide-react'
 import api from '@/lib/api'
-import { cn } from '@/lib/utils'
 
 interface Flashcard {
     front: string
     back: string
 }
-export default function FlashcardView({ documentId, initialTopic = "Key Concepts" }: { documentId: string, initialTopic?: string }) {
+export default function FlashcardView({
+    documentId,
+    initialTopic = 'Key Concepts'
+}: {
+    documentId: string
+    initialTopic?: string
+}) {
     const [cards, setCards] = useState<Flashcard[]>([])
     const [loading, setLoading] = useState(false)
     const [flipped, setFlipped] = useState<number | null>(null)
 
-    useEffect(() => {
-        generateCards()
-    }, [documentId])
-
-    const generateCards = async () => {
+    const generateCards = useCallback(async () => {
         setLoading(true)
         setCards([])
         try {
@@ -34,13 +35,19 @@ export default function FlashcardView({ documentId, initialTopic = "Key Concepts
         } finally {
             setLoading(false)
         }
-    }
+    }, [documentId, initialTopic])
+
+    useEffect(() => {
+        generateCards()
+    }, [generateCards])
 
     if (cards.length === 0 && !loading) {
         return (
             <div className="flex flex-col items-center justify-center h-full p-8 text-center space-y-4">
                 <h3 className="text-xl font-semibold">AI Flashcards</h3>
-                <p className="text-slate-500">Generate flashcards to test your knowledge.</p>
+                <p className="text-slate-500">
+                    Generate flashcards to test your knowledge.
+                </p>
                 <Button onClick={generateCards}>Generate Flashcards</Button>
             </div>
         )
@@ -69,31 +76,38 @@ export default function FlashcardView({ documentId, initialTopic = "Key Concepts
                     <div
                         key={idx}
                         className="group h-64 cursor-pointer"
-                        style={{ perspective: "1000px" }}
+                        style={{ perspective: '1000px' }}
                         onClick={() => setFlipped(flipped === idx ? null : idx)}
                     >
                         <div
                             className="relative w-full h-full duration-500 transition-transform"
                             style={{
-                                transformStyle: "preserve-3d",
-                                transform: flipped === idx ? "rotateY(180deg)" : "rotateY(0deg)"
+                                transformStyle: 'preserve-3d',
+                                transform:
+                                    flipped === idx
+                                        ? 'rotateY(180deg)'
+                                        : 'rotateY(0deg)'
                             }}
                         >
                             {/* Front */}
                             <Card
                                 className="absolute w-full h-full flex items-center justify-center p-6 text-center bg-white hover:border-blue-400 transition-colors"
-                                style={{ backfaceVisibility: "hidden" }}
+                                style={{ backfaceVisibility: 'hidden' }}
                             >
-                                <p className="font-semibold text-lg">{card.front}</p>
-                                <span className="absolute bottom-4 text-xs text-slate-400">Click to flip</span>
+                                <p className="font-semibold text-lg">
+                                    {card.front}
+                                </p>
+                                <span className="absolute bottom-4 text-xs text-slate-400">
+                                    Click to flip
+                                </span>
                             </Card>
 
                             {/* Back */}
                             <Card
                                 className="absolute w-full h-full flex items-center justify-center p-6 text-center bg-blue-50 border-blue-200"
                                 style={{
-                                    backfaceVisibility: "hidden",
-                                    transform: "rotateY(180deg)"
+                                    backfaceVisibility: 'hidden',
+                                    transform: 'rotateY(180deg)'
                                 }}
                             >
                                 <p className="text-slate-800">{card.back}</p>
