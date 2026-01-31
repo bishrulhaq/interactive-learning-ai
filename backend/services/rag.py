@@ -28,6 +28,14 @@ def search_documents(
     return list(results)
 
 
+def get_relevant_context(query: str, document_id: int, db: Session, k: int = 5) -> str:
+    """
+    Search for documents and return a single concatenated string of context.
+    """
+    chunks = search_documents(query, document_id, db, k=k)
+    return "\n\n".join([chunk.content for chunk in chunks])
+
+
 def chat_with_docs(query: str, document_id: int, db: Session) -> str:
     # 1. Retrieve context
     relevant_chunks = search_documents(query, document_id, db, k=5)

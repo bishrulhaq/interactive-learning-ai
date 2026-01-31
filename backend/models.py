@@ -40,6 +40,9 @@ class Document(Base):
     mindmaps = relationship(
         "GeneratedMindMap", back_populates="document", cascade="all, delete-orphan"
     )
+    podcasts = relationship(
+        "GeneratedPodcast", back_populates="document", cascade="all, delete-orphan"
+    )
 
 
 class GeneratedQuiz(Base):
@@ -120,3 +123,17 @@ class GeneratedMindMap(Base):
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     document = relationship("Document", back_populates="mindmaps")
+
+
+class GeneratedPodcast(Base):
+    __tablename__ = "generated_podcasts"
+
+    id = Column(Integer, primary_key=True, index=True)
+    document_id = Column(Integer, ForeignKey("documents.id"))
+    topic = Column(String)
+    script = Column(JSON)  # List of dialogue items: {"speaker": "Alex", "text": "..."}
+    audio_path = Column(String)  # Relative path to the generated .wav file
+    podcast_type = Column(String)  # single, duo
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    document = relationship("Document", back_populates="podcasts")

@@ -49,3 +49,15 @@ class MindMapEdge(BaseModel):
 class MindMap(BaseModel):
     nodes: List[MindMapNode]
     edges: List[MindMapEdge]
+
+
+class PodcastDialogueItem(BaseModel):
+    speaker: str
+    text: str
+    voice: str
+
+
+class Podcast(BaseModel):
+    topic: str
+    script: List[PodcastDialogueItem]
+    audio_path: str = ""

@@ -3,7 +3,7 @@
 import { useState, useCallback, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
-import { Loader2 } from 'lucide-react'
+import { Loader2, Volume2 } from 'lucide-react'
 import api from '@/lib/api'
 
 interface LessonSection {
@@ -26,6 +26,7 @@ export default function LessonView({
 }) {
     const [lesson, setLesson] = useState<LessonPlan | null>(null)
     const [loading, setLoading] = useState(true)
+    const [narrating, setNarrating] = useState(false)
     const [topic] = useState(initialTopic)
 
     // TODO: Improve topic selection logic
@@ -44,6 +45,30 @@ export default function LessonView({
             setLoading(false)
         }
     }, [documentId, topic])
+
+    const narrateLesson = useCallback(async () => {
+        if (!lesson || narrating) return
+
+        setNarrating(true)
+        try {
+            // Create a summary for the narration
+            const summaryText = lesson.sections
+                .map((s) => `${s.title}. ${s.content}`)
+                .join(' ')
+            const url = `${api.defaults.baseURL}/generate/narration?text=${encodeURIComponent(summaryText.substring(0, 1000))}` // Limiting for now
+
+            const audio = new Audio(url)
+            audio.onended = () => setNarrating(false)
+            audio.onerror = () => {
+                console.error('Audio playback error')
+                setNarrating(false)
+            }
+            await audio.play()
+        } catch (e) {
+            console.error('Narration failed:', e)
+            setNarrating(false)
+        }
+    }, [lesson, narrating])
 
     // Auto-load if exists
     useEffect(() => {
@@ -95,9 +120,28 @@ export default function LessonView({
         <div className="space-y-6 pt-4 px-4 pb-20">
             <div className="flex items-center justify-between">
                 <h2 className="text-2xl font-bold">{lesson?.topic}</h2>
-                <Button variant="outline" size="sm" onClick={generateLesson}>
-                    Regenerate
-                </Button>
+                <div className="flex gap-2">
+                    <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={narrateLesson}
+                        disabled={narrating}
+                    >
+                        {narrating ? (
+                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                        ) : (
+                            <Volume2 className="w-4 h-4 mr-2" />
+                        )}
+                        Play Summary
+                    </Button>
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={generateLesson}
+                    >
+                        Regenerate
+                    </Button>
+                </div>
             </div>
 
             {lesson?.sections.map((section, idx) => (

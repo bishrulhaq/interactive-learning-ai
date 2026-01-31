@@ -1,5 +1,5 @@
-from fastapi import FastAPI, Depends, UploadFile, File
-from fastapi import HTTPException
+from fastapi import FastAPI, Depends, UploadFile, File, Query, HTTPException
+from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
@@ -12,8 +12,10 @@ from backend.models import (
     GeneratedFlashcard,
     GeneratedQuiz,
     GeneratedMindMap,
+    GeneratedPodcast,
 )
 from sqlalchemy import select, desc, func
+from fastapi import BackgroundTasks
 from backend.services.ingestion import process_pdf
 from backend.services.rag import chat_with_docs
 from backend.services.generator import (
@@ -22,8 +24,11 @@ from backend.services.generator import (
     generate_quiz,
     generate_mind_map,
 )
-from backend.schemas import LessonPlan, FlashcardSet, Quiz, MindMap
+from backend.services.narration import generate_speech
+from backend.services.podcast import generate_podcast_script, synthesize_podcast_audio
+from backend.schemas import LessonPlan, FlashcardSet, Quiz, MindMap, Podcast
 from pydantic import BaseModel
+import os
 
 # Create tables on startup (dev only)
 Base.metadata.create_all(bind=engine)
@@ -42,6 +47,10 @@ app.add_middleware(
 
 # Mount storage directory to serve PDFs
 app.mount("/files", StaticFiles(directory="storage/documents"), name="files")
+
+# Mount audio storage directory
+os.makedirs("storage/audio/podcasts", exist_ok=True)
+app.mount("/audio", StaticFiles(directory="storage/audio"), name="audio")
 
 
 @app.get("/")
@@ -229,6 +238,79 @@ def api_generate_mindmap(request: GenerateRequest, db: Session = Depends(get_db)
     return mind_map
 
 
+@app.get("/generate/narration")
+def api_generate_narration(
+    text: str = Query(..., description="The text to narrate"),
+    voice: str = Query("af_bella", description="The voice to use"),
+):
+    try:
+        audio_stream = generate_speech(text, voice=voice)
+        return StreamingResponse(audio_stream, media_type="audio/wav")
+    except FileNotFoundError as e:
+        raise HTTPException(status_code=503, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/generate/podcast", response_model=Podcast)
+def api_generate_podcast(
+    request: GenerateRequest,
+    background_tasks: BackgroundTasks,
+    type: str = "duo",
+    db: Session = Depends(get_db),
+):
+    # check if exists
+    stmt = select(GeneratedPodcast).filter(
+        GeneratedPodcast.document_id == request.document_id,
+        GeneratedPodcast.topic == request.topic,
+        GeneratedPodcast.podcast_type == type,
+    )
+    existing = db.scalars(stmt).first()
+    if existing:
+        return Podcast(
+            topic=existing.topic,
+            script=existing.script,
+            audio_path=existing.audio_path,
+        )
+
+    # Generate Script
+    podcast_data = generate_podcast_script(
+        request.topic, request.document_id, db, podcast_type=type
+    )
+
+    # Pre-save without audio path
+    db_podcast = GeneratedPodcast(
+        document_id=request.document_id,
+        topic=request.topic,
+        script=[item.model_dump() for item in podcast_data.script],
+        audio_path="",  # Will be filled by background task
+        podcast_type=type,
+    )
+    db.add(db_podcast)
+    db.commit()
+    db.refresh(db_podcast)
+
+    # Start audio synthesis in background
+    def synthesize_and_update(podcast_obj: Podcast, db_podcast_id: int):
+        # We need a new session for background tasks usually, but let's keep it simple for now
+        # Actually better to create a new session
+        from backend.database import SessionLocal
+
+        with SessionLocal() as bg_db:
+            audio_rel_path = synthesize_podcast_audio(podcast_obj)
+            bg_stmt = select(GeneratedPodcast).filter(
+                GeneratedPodcast.id == db_podcast_id
+            )
+            bg_existing = bg_db.scalars(bg_stmt).first()
+            if bg_existing:
+                bg_existing.audio_path = audio_rel_path  # type: ignore[assignment]
+                bg_db.commit()
+
+    background_tasks.add_task(synthesize_and_update, podcast_data, db_podcast.id)
+
+    return podcast_data
+
+
 @app.get("/generate/existing")
 def get_existing_content(document_id: int, topic: str, db: Session = Depends(get_db)):
     lesson = db.scalar(
@@ -253,9 +335,25 @@ def get_existing_content(document_id: int, topic: str, db: Session = Depends(get
         )
     )
 
+    podcast = db.scalar(
+        select(GeneratedPodcast).filter(
+            GeneratedPodcast.document_id == document_id,
+            GeneratedPodcast.topic == topic,
+        )
+    )
+
     return {
         "lesson": lesson.content if lesson else None,
         "flashcards": flashcards.flashcards if flashcards else None,
         "quiz": quiz.quiz_content if quiz else None,
         "mindmap": mindmap.mindmap_content if mindmap else None,
+        "podcast": (
+            {
+                "topic": podcast.topic,
+                "script": podcast.script,
+                "audio_path": podcast.audio_path,
+            }
+            if podcast
+            else None
+        ),
     }
