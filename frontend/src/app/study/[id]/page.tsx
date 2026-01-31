@@ -9,7 +9,8 @@ import {
     BookOpen,
     Layers,
     ArrowLeft,
-    BrainCircuit
+    BrainCircuit,
+    Network
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
@@ -19,6 +20,7 @@ import ChatInterface from '@/components/chat-interface'
 import LessonView from '@/components/lesson-view'
 import FlashcardView from '@/components/flashcard-view'
 import QuizView from '@/components/quiz-view'
+import MindMapView from '@/components/mindmap-view'
 
 interface Document {
     id: number
@@ -87,7 +89,7 @@ export default function StudyPage() {
             <div className="w-1/2 bg-white border-l shadow-xl shadow-slate-200/50 flex flex-col">
                 <Tabs defaultValue="chat" className="flex flex-col h-full">
                     <div className="border-b px-4 pt-3 bg-white">
-                        <TabsList className="grid w-full grid-cols-4 mb-2">
+                        <TabsList className="grid w-full grid-cols-5 mb-2">
                             <TabsTrigger
                                 value="chat"
                                 className="flex items-center gap-2"
@@ -111,6 +113,12 @@ export default function StudyPage() {
                                 className="flex items-center gap-2"
                             >
                                 <BrainCircuit className="w-4 h-4" /> Quiz
+                            </TabsTrigger>
+                            <TabsTrigger
+                                value="mindmap"
+                                className="flex items-center gap-2"
+                            >
+                                <Network className="w-4 h-4" /> Map
                             </TabsTrigger>
                         </TabsList>
                     </div>
@@ -141,6 +149,13 @@ export default function StudyPage() {
                         className="flex-1 mt-0 overflow-y-auto bg-slate-50/50"
                     >
                         <QuizView documentId={id} />
+                    </TabsContent>
+
+                    <TabsContent
+                        value="mindmap"
+                        className="flex-1 mt-0 overflow-y-auto bg-slate-50/50"
+                    >
+                        <MindMapView documentId={id} />
                     </TabsContent>
                 </Tabs>
             </div>

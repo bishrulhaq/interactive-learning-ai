@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Loader2, RefreshCw, CheckCircle, XCircle } from 'lucide-react'
@@ -24,6 +24,13 @@ interface Quiz {
     questions: QuizQuestion[]
 }
 
+interface RawQuizQuestion {
+    question: string
+    options: string[]
+    correct_answer_index: number
+    explanation: string
+}
+
 export default function QuizView({
     documentId,
     initialTopic = 'Key Concepts'
@@ -32,7 +39,7 @@ export default function QuizView({
     initialTopic?: string
 }) {
     const [quiz, setQuiz] = useState<Quiz | null>(null)
-    const [loading, setLoading] = useState(false)
+    const [loading, setLoading] = useState(true)
     const [selectedAnswers, setSelectedAnswers] = useState<{
         [key: number]: string
     }>({})
@@ -55,8 +62,7 @@ export default function QuizView({
             const rawData = res.data
             const formattedQuiz: Quiz = {
                 topic: rawData.title || initialTopic,
-                // eslint-disable-next-line @typescript-eslint/no-explicit-any
-                questions: rawData.questions.map((q: any) => ({
+                questions: rawData.questions.map((q: RawQuizQuestion) => ({
                     question: q.question,
                     explanation: q.explanation,
                     options: q.options.map((optText: string, idx: number) => ({
@@ -77,9 +83,52 @@ export default function QuizView({
         }
     }, [documentId, initialTopic])
 
+    // Auto-load if exists
     useEffect(() => {
-        generateQuiz()
-    }, [generateQuiz])
+        let mounted = true
+        const fetchExisting = async () => {
+            try {
+                const res = await api.get('/generate/existing', {
+                    params: { document_id: documentId, topic: initialTopic }
+                })
+                if (!mounted) return
+                if (res.data.quiz) {
+                    const rawData = res.data.quiz
+                    const formattedQuiz: Quiz = {
+                        topic: rawData.title || initialTopic,
+                        questions: rawData.questions.map(
+                            (q: RawQuizQuestion) => ({
+                                question: q.question,
+                                explanation: q.explanation,
+                                options: q.options.map(
+                                    (optText: string, idx: number) => ({
+                                        label: String.fromCharCode(65 + idx),
+                                        text: optText
+                                    })
+                                ),
+                                correct_answer: String.fromCharCode(
+                                    65 + q.correct_answer_index
+                                )
+                            })
+                        )
+                    }
+                    setQuiz(formattedQuiz)
+                }
+            } catch (e) {
+                console.error('Error fetching existing quiz:', e)
+            } finally {
+                if (mounted) setLoading(false)
+            }
+        }
+        setQuiz(null)
+        setSelectedAnswers({})
+        setRevealedQuestions({})
+        setLoading(true)
+        fetchExisting()
+        return () => {
+            mounted = false
+        }
+    }, [documentId, initialTopic])
 
     const handleOptionSelect = (questionIdx: number, optionLabel: string) => {
         // Prevent changing answer if already revealed/submitted

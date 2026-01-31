@@ -11,6 +11,7 @@ from backend.models import (
     GeneratedLesson,
     GeneratedFlashcard,
     GeneratedQuiz,
+    GeneratedMindMap,
 )
 from sqlalchemy import select, desc, func
 from backend.services.ingestion import process_pdf
@@ -19,8 +20,9 @@ from backend.services.generator import (
     generate_lesson_plan,
     generate_flashcards,
     generate_quiz,
+    generate_mind_map,
 )
-from backend.schemas import LessonPlan, FlashcardSet, Quiz
+from backend.schemas import LessonPlan, FlashcardSet, Quiz, MindMap
 from pydantic import BaseModel
 
 # Create tables on startup (dev only)
@@ -199,3 +201,61 @@ def api_generate_quiz(request: GenerateRequest, db: Session = Depends(get_db)):
     db.commit()
 
     return quiz
+
+
+@app.post("/generate/mindmap", response_model=MindMap)
+def api_generate_mindmap(request: GenerateRequest, db: Session = Depends(get_db)):
+    # Check if exists
+    stmt = select(GeneratedMindMap).filter(
+        GeneratedMindMap.document_id == request.document_id,
+        GeneratedMindMap.topic == request.topic,
+    )
+    existing = db.scalars(stmt).first()
+    if existing:
+        return existing.mindmap_content
+
+    # Generate
+    mind_map = generate_mind_map(request.topic, request.document_id, db)
+
+    # Save
+    db_mindmap = GeneratedMindMap(
+        document_id=request.document_id,
+        topic=request.topic,
+        mindmap_content=mind_map.model_dump(),
+    )
+    db.add(db_mindmap)
+    db.commit()
+
+    return mind_map
+
+
+@app.get("/generate/existing")
+def get_existing_content(document_id: int, topic: str, db: Session = Depends(get_db)):
+    lesson = db.scalar(
+        select(GeneratedLesson).filter(
+            GeneratedLesson.document_id == document_id, GeneratedLesson.topic == topic
+        )
+    )
+    flashcards = db.scalar(
+        select(GeneratedFlashcard).filter(
+            GeneratedFlashcard.document_id == document_id,
+            GeneratedFlashcard.topic == topic,
+        )
+    )
+    quiz = db.scalar(
+        select(GeneratedQuiz).filter(
+            GeneratedQuiz.document_id == document_id, GeneratedQuiz.topic == topic
+        )
+    )
+    mindmap = db.scalar(
+        select(GeneratedMindMap).filter(
+            GeneratedMindMap.document_id == document_id, GeneratedMindMap.topic == topic
+        )
+    )
+
+    return {
+        "lesson": lesson.content if lesson else None,
+        "flashcards": flashcards.flashcards if flashcards else None,
+        "quiz": quiz.quiz_content if quiz else None,
+        "mindmap": mindmap.mindmap_content if mindmap else None,
+    }

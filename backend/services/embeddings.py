@@ -2,6 +2,7 @@ from langchain_openai import OpenAIEmbeddings
 from langchain_huggingface import HuggingFaceEmbeddings
 from backend.core.config import settings
 
+
 def get_embeddings_model():
     """
     Factory to return the configured embedding model wrapper.

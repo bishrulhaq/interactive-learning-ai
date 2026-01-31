@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Loader2 } from 'lucide-react'
@@ -25,7 +25,7 @@ export default function LessonView({
     initialTopic?: string
 }) {
     const [lesson, setLesson] = useState<LessonPlan | null>(null)
-    const [loading, setLoading] = useState(false)
+    const [loading, setLoading] = useState(true)
     const [topic] = useState(initialTopic)
 
     // TODO: Improve topic selection logic
@@ -45,10 +45,31 @@ export default function LessonView({
         }
     }, [documentId, topic])
 
-    // Auto-load if exists or generate new
+    // Auto-load if exists
     useEffect(() => {
-        generateLesson()
-    }, [generateLesson])
+        let mounted = true
+        const fetchExisting = async () => {
+            try {
+                const res = await api.get('/generate/existing', {
+                    params: { document_id: documentId, topic }
+                })
+                if (!mounted) return
+                if (res.data.lesson) {
+                    setLesson(res.data.lesson)
+                }
+            } catch (e) {
+                console.error('Error fetching existing lesson:', e)
+            } finally {
+                if (mounted) setLoading(false)
+            }
+        }
+        setLesson(null)
+        setLoading(true)
+        fetchExisting()
+        return () => {
+            mounted = false
+        }
+    }, [documentId, topic])
 
     if (!lesson && !loading) {
         return (

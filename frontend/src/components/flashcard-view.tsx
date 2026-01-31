@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Loader2, RefreshCw } from 'lucide-react'
@@ -18,7 +18,7 @@ export default function FlashcardView({
     initialTopic?: string
 }) {
     const [cards, setCards] = useState<Flashcard[]>([])
-    const [loading, setLoading] = useState(false)
+    const [loading, setLoading] = useState(true)
     const [flipped, setFlipped] = useState<number | null>(null)
 
     const generateCards = useCallback(async () => {
@@ -37,9 +37,31 @@ export default function FlashcardView({
         }
     }, [documentId, initialTopic])
 
+    // Auto-load if exists
     useEffect(() => {
-        generateCards()
-    }, [generateCards])
+        let mounted = true
+        const fetchExisting = async () => {
+            try {
+                const res = await api.get('/generate/existing', {
+                    params: { document_id: documentId, topic: initialTopic }
+                })
+                if (!mounted) return
+                if (res.data.flashcards) {
+                    setCards(res.data.flashcards.cards)
+                }
+            } catch (e) {
+                console.error('Error fetching existing flashcards:', e)
+            } finally {
+                if (mounted) setLoading(false)
+            }
+        }
+        setCards([])
+        setLoading(true)
+        fetchExisting()
+        return () => {
+            mounted = false
+        }
+    }, [documentId, initialTopic])
 
     if (cards.length === 0 && !loading) {
         return (

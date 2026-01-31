@@ -32,3 +32,20 @@ class LessonSection(BaseModel):
 class LessonPlan(BaseModel):
     topic: str
     sections: List[LessonSection]
+
+
+class MindMapNode(BaseModel):
+    id: str
+    label: str
+    type: str = "default"  # input, output, default
+
+
+class MindMapEdge(BaseModel):
+    source: str
+    target: str
+    label: str = ""
+
+
+class MindMap(BaseModel):
+    nodes: List[MindMapNode]
+    edges: List[MindMapEdge]

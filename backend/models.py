@@ -37,6 +37,9 @@ class Document(Base):
     quizzes = relationship(
         "GeneratedQuiz", back_populates="document", cascade="all, delete-orphan"
     )
+    mindmaps = relationship(
+        "GeneratedMindMap", back_populates="document", cascade="all, delete-orphan"
+    )
 
 
 class GeneratedQuiz(Base):
@@ -105,3 +108,15 @@ class GeneratedFlashcard(Base):
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
 
     document = relationship("Document", back_populates="flashcards")
+
+
+class GeneratedMindMap(Base):
+    __tablename__ = "generated_mindmaps"
+
+    id = Column(Integer, primary_key=True, index=True)
+    document_id = Column(Integer, ForeignKey("documents.id"))
+    topic = Column(String)
+    mindmap_content = Column(JSON)  # Stores the full MindMap JSON
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    document = relationship("Document", back_populates="mindmaps")
