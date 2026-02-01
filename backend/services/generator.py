@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session
 from backend.services.rag import search_documents
 from backend.schemas import LessonPlan, FlashcardSet, Quiz, MindMap
 from langchain_openai import ChatOpenAI
+from pydantic import SecretStr
 from langchain_core.prompts import ChatPromptTemplate
 import random
 
@@ -18,7 +19,7 @@ def get_llm(db: Session, temperature: float = 0.7):
     return ChatOpenAI(
         model=settings_db.openai_model,
         temperature=temperature,
-        api_key=settings_db.openai_api_key,
+        api_key=SecretStr(settings_db.openai_api_key),
     )
 
 

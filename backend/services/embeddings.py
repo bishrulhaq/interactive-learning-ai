@@ -2,6 +2,7 @@ from langchain_openai import OpenAIEmbeddings
 from langchain_huggingface import HuggingFaceEmbeddings
 from backend.core.config import settings
 from sqlalchemy.orm import Session
+from pydantic import SecretStr
 from typing import Optional
 
 
@@ -24,7 +25,9 @@ def get_embeddings_model(db: Optional[Session] = None):
             api_key = settings_db.openai_api_key
 
     if provider == "openai":
-        return OpenAIEmbeddings(model=model_name, api_key=api_key)
+        return OpenAIEmbeddings(
+            model=model_name, api_key=SecretStr(api_key) if api_key else None
+        )
     elif provider == "huggingface":
         # Uses local sentence-transformers models
         mn = model_name if model_name else "sentence-transformers/all-MiniLM-L6-v2"
