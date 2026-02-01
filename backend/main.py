@@ -185,6 +185,14 @@ async def upload_document(
     if not ws:
         raise HTTPException(status_code=404, detail="Workspace not found")
 
+    # Guard: Ensure OpenAI API key is configured
+    app_settings = get_app_settings(db)
+    if not app_settings.openai_api_key:
+        raise HTTPException(
+            status_code=400,
+            detail="OpenAI API Key is not configured. Please add your key in Settings to enable document processing.",
+        )
+
     return await ingest_file(file, id, db)
 
 

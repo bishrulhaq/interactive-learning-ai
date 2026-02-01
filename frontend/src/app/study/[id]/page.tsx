@@ -160,17 +160,19 @@ export default function StudyPage() {
                                 onChange={handleFileUpload}
                                 disabled={uploading}
                             />
-                            <Button
-                                size="sm"
-                                variant="outline"
-                                className="h-8 gap-1"
-                                asChild
-                            >
-                                <label htmlFor="workspace-upload" className="cursor-pointer">
-                                    {uploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
-                                    Upload
-                                </label>
-                            </Button>
+                            {hasApiKey && (
+                                <Button
+                                    size="sm"
+                                    variant="outline"
+                                    className="h-8 gap-1"
+                                    asChild
+                                >
+                                    <label htmlFor="workspace-upload" className="cursor-pointer">
+                                        {uploading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
+                                        Upload
+                                    </label>
+                                </Button>
+                            )}
                         </div>
                     </CardHeader>
                     <CardContent className="p-0 flex-1 overflow-y-auto">
@@ -235,13 +237,21 @@ export default function StudyPage() {
                                 ? "Upload your first PDF, Word, or PowerPoint file to start learning with AI. Your workspace will then be analyzed for context."
                                 : "Our AI is currently analyzing your documents. This usually takes less than a minute. Once completed, all learning tools will be unlocked!"}
                         </p>
-                        {workspace.documents.length === 0 && (
+                        {workspace.documents.length === 0 && hasApiKey && (
                             <Button className="mt-6 gap-2" asChild>
                                 <label htmlFor="workspace-upload" className="cursor-pointer">
                                     <Plus className="w-4 h-4" />
                                     Upload Material
                                 </label>
                             </Button>
+                        )}
+                        {workspace.documents.length === 0 && !hasApiKey && (
+                            <div className="mt-6">
+                                <KeyWall
+                                    message="To start learning, you'll need to upload documents. Please add your OpenAI API Key in settings first."
+                                    className="max-w-md mx-auto"
+                                />
+                            </div>
                         )}
                     </div>
                 )}
