@@ -39,7 +39,8 @@ async def ingest_file(file: UploadFile, workspace_id: int, db: Session):
     Saves the file and triggers the background processing task.
     """
     file_path = save_file(file)
-    db_doc = create_document_record(db, workspace_id, file.filename, file_path)
+    filename = file.filename or "uploaded_file"
+    db_doc = create_document_record(db, workspace_id, filename, file_path)
 
     # Trigger background task
     from backend.tasks import process_document_task
@@ -63,7 +64,7 @@ def save_file(file: UploadFile) -> Path:
     """
     Save safely with UUID to avoid collisions, preserving original extension
     """
-    original_suffix = Path(file.filename).suffix
+    original_suffix = Path(file.filename or "").suffix
     filename = f"{uuid.uuid4()}{original_suffix}"
     path = UPLOAD_DIR / filename
 

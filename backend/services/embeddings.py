@@ -24,7 +24,7 @@ def get_embeddings_model(db: Optional[Session] = None):
             api_key = settings_db.openai_api_key
 
     if provider == "openai":
-        return OpenAIEmbeddings(model=model_name, openai_api_key=api_key)
+        return OpenAIEmbeddings(model=model_name, api_key=api_key)
     elif provider == "huggingface":
         # Uses local sentence-transformers models
         mn = model_name if model_name else "sentence-transformers/all-MiniLM-L6-v2"

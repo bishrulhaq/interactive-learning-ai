@@ -68,7 +68,7 @@ def chat_with_docs(query: str, workspace_id: int, db: Session) -> str:
     llm = ChatOpenAI(
         model=settings_db.openai_model,
         temperature=0,
-        openai_api_key=settings_db.openai_api_key,
+        api_key=settings_db.openai_api_key,
     )
 
     system_prompt = f"""You are an educational assistant. Use the following context from the workspace to answer the user's question.
@@ -82,4 +82,4 @@ Context:
     messages = [SystemMessage(content=system_prompt), HumanMessage(content=query)]
 
     response = llm.invoke(messages)
-    return response.content
+    return cast(str, response.content)

@@ -20,3 +20,6 @@ celery[redis]
 python-docx
 python-pptx
 Pillow
+types-requests
+types-python-dateutil
+types-PyYAML

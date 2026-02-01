@@ -79,7 +79,7 @@ def process_document_task(document_id: int):
 
 
 def _process_docx(path: Path) -> List[dict]:
-    doc = DocxDocument(path)
+    doc = DocxDocument(str(path))
     full_text = []
     for para in doc.paragraphs:
         full_text.append(para.text)
@@ -89,7 +89,7 @@ def _process_docx(path: Path) -> List[dict]:
 
 
 def _process_pptx(path: Path) -> List[dict]:
-    prs = Presentation(path)
+    prs = Presentation(str(path))
     content_pages = []
     for i, slide in enumerate(prs.slides):
         slide_text = []

@@ -33,7 +33,7 @@ def generate_podcast_script(
     llm = ChatOpenAI(
         model=settings_db.openai_model,
         temperature=0.7,
-        openai_api_key=settings_db.openai_api_key,
+        api_key=settings_db.openai_api_key,
     )
 
     parser = PydanticOutputParser(pydantic_object=Podcast)

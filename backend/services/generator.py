@@ -18,7 +18,7 @@ def get_llm(db: Session, temperature: float = 0.7):
     return ChatOpenAI(
         model=settings_db.openai_model,
         temperature=temperature,
-        openai_api_key=settings_db.openai_api_key,
+        api_key=settings_db.openai_api_key,
     )
 
 
