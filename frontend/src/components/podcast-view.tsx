@@ -28,10 +28,10 @@ interface Podcast {
 }
 
 export default function PodcastView({
-    documentId,
+    workspaceId,
     initialTopic = 'Key Concepts'
 }: {
-    documentId: string
+    workspaceId: number
     initialTopic?: string
 }) {
     const [podcast, setPodcast] = useState<Podcast | null>(null)
@@ -46,7 +46,7 @@ export default function PodcastView({
             if (!isPolling) setLoading(true)
             try {
                 const res = await api.get('/generate/existing', {
-                    params: { document_id: documentId, topic: initialTopic }
+                    params: { workspace_id: workspaceId, topic: initialTopic }
                 })
                 if (res.data.podcast) {
                     setPodcast(res.data.podcast)
@@ -57,7 +57,7 @@ export default function PodcastView({
                 if (!isPolling) setLoading(false)
             }
         },
-        [documentId, initialTopic]
+        [workspaceId, initialTopic]
     )
 
     useEffect(() => {
@@ -80,7 +80,7 @@ export default function PodcastView({
         try {
             const res = await api.post(`/generate/podcast?type=${type}`, {
                 topic: initialTopic,
-                document_id: documentId
+                workspace_id: workspaceId
             })
             setPodcast(res.data)
         } catch (e) {
@@ -101,7 +101,7 @@ export default function PodcastView({
                     setProgress(
                         (audioRef.current.currentTime /
                             audioRef.current.duration) *
-                            100
+                        100
                     )
                 }
             }

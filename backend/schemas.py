@@ -1,5 +1,36 @@
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
+from datetime import datetime
+
+
+class WorkspaceCreate(BaseModel):
+    name: str
+
+
+class DocumentOut(BaseModel):
+    id: int
+    workspace_id: int
+    title: str
+    file_path: str
+    file_type: Optional[str]
+    status: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class WorkspaceOut(BaseModel):
+    id: int
+    name: str
+    created_at: datetime
+
+    class Config:
+        from_attributes = True
+
+
+class WorkspaceDetailOut(WorkspaceOut):
+    documents: List[DocumentOut]
 
 
 class Flashcard(BaseModel):
@@ -61,3 +92,23 @@ class Podcast(BaseModel):
     topic: str
     script: List[PodcastDialogueItem]
     audio_path: str = ""
+
+
+class AppSettings(BaseModel):
+    llm_provider: str = "openai"
+    openai_api_key: Optional[str] = None
+    openai_model: str = "gpt-4o"
+    embedding_provider: str = "openai"
+    embedding_model: str = "text-embedding-3-small"
+    updated_at: Optional[datetime] = None
+
+    class Config:
+        from_attributes = True
+
+
+class AppSettingsUpdate(BaseModel):
+    llm_provider: Optional[str] = None
+    openai_api_key: Optional[str] = None
+    openai_model: Optional[str] = None
+    embedding_provider: Optional[str] = None
+    embedding_model: Optional[str] = None

@@ -1,26 +1,33 @@
 from langchain_openai import OpenAIEmbeddings
 from langchain_huggingface import HuggingFaceEmbeddings
 from backend.core.config import settings
+from sqlalchemy.orm import Session
+from typing import Optional
 
 
-def get_embeddings_model():
+def get_embeddings_model(db: Optional[Session] = None):
     """
     Factory to return the configured embedding model wrapper.
     """
-    if settings.EMBEDDING_PROVIDER == "openai":
-        return OpenAIEmbeddings(
-            model=settings.EMBEDDING_MODEL_NAME, openai_api_key=settings.OPENAI_API_KEY
-        )
-    elif settings.EMBEDDING_PROVIDER == "huggingface":
+    # Defaults from core settings
+    provider = settings.EMBEDDING_PROVIDER
+    model_name = settings.EMBEDDING_MODEL_NAME
+    api_key = settings.OPENAI_API_KEY
+
+    if db:
+        from backend.services.settings import get_app_settings
+
+        settings_db = get_app_settings(db)
+        provider = settings_db.embedding_provider
+        model_name = settings_db.embedding_model
+        if settings_db.openai_api_key:
+            api_key = settings_db.openai_api_key
+
+    if provider == "openai":
+        return OpenAIEmbeddings(model=model_name, openai_api_key=api_key)
+    elif provider == "huggingface":
         # Uses local sentence-transformers models
-        # Default fallback: all-MiniLM-L6-v2 is fast and decent
-        model_name = (
-            settings.EMBEDDING_MODEL_NAME
-            if settings.EMBEDDING_MODEL_NAME
-            else "sentence-transformers/all-MiniLM-L6-v2"
-        )
-        return HuggingFaceEmbeddings(model_name=model_name)
+        mn = model_name if model_name else "sentence-transformers/all-MiniLM-L6-v2"
+        return HuggingFaceEmbeddings(model_name=mn)
     else:
-        raise ValueError(
-            f"Unsupported embedding provider: {settings.EMBEDDING_PROVIDER}"
-        )
+        raise ValueError(f"Unsupported embedding provider: {provider}")

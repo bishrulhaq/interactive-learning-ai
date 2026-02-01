@@ -11,10 +11,10 @@ interface Flashcard {
     back: string
 }
 export default function FlashcardView({
-    documentId,
+    workspaceId,
     initialTopic = 'Key Concepts'
 }: {
-    documentId: string
+    workspaceId: number
     initialTopic?: string
 }) {
     const [cards, setCards] = useState<Flashcard[]>([])
@@ -27,7 +27,7 @@ export default function FlashcardView({
         try {
             const res = await api.post('/generate/flashcards', {
                 topic: initialTopic,
-                document_id: documentId
+                workspace_id: workspaceId
             })
             setCards(res.data.cards)
         } catch (e) {
@@ -35,7 +35,7 @@ export default function FlashcardView({
         } finally {
             setLoading(false)
         }
-    }, [documentId, initialTopic])
+    }, [workspaceId, initialTopic])
 
     // Auto-load if exists
     useEffect(() => {
@@ -43,7 +43,7 @@ export default function FlashcardView({
         const fetchExisting = async () => {
             try {
                 const res = await api.get('/generate/existing', {
-                    params: { document_id: documentId, topic: initialTopic }
+                    params: { workspace_id: workspaceId, topic: initialTopic }
                 })
                 if (!mounted) return
                 if (res.data.flashcards) {
@@ -61,7 +61,7 @@ export default function FlashcardView({
         return () => {
             mounted = false
         }
-    }, [documentId, initialTopic])
+    }, [workspaceId, initialTopic])
 
     if (cards.length === 0 && !loading) {
         return (

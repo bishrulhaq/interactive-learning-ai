@@ -18,10 +18,10 @@ interface LessonPlan {
 }
 
 export default function LessonView({
-    documentId,
+    workspaceId,
     initialTopic = 'General Overview'
 }: {
-    documentId: string
+    workspaceId: number
     initialTopic?: string
 }) {
     const [lesson, setLesson] = useState<LessonPlan | null>(null)
@@ -36,7 +36,7 @@ export default function LessonView({
         try {
             const res = await api.post('/generate/lesson', {
                 topic,
-                document_id: documentId
+                workspace_id: workspaceId
             })
             setLesson(res.data)
         } catch (e) {
@@ -44,7 +44,7 @@ export default function LessonView({
         } finally {
             setLoading(false)
         }
-    }, [documentId, topic])
+    }, [workspaceId, topic])
 
     const narrateLesson = useCallback(async () => {
         if (!lesson || narrating) return
@@ -76,7 +76,7 @@ export default function LessonView({
         const fetchExisting = async () => {
             try {
                 const res = await api.get('/generate/existing', {
-                    params: { document_id: documentId, topic }
+                    params: { workspace_id: workspaceId, topic }
                 })
                 if (!mounted) return
                 if (res.data.lesson) {
@@ -94,7 +94,7 @@ export default function LessonView({
         return () => {
             mounted = false
         }
-    }, [documentId, topic])
+    }, [workspaceId, topic])
 
     if (!lesson && !loading) {
         return (

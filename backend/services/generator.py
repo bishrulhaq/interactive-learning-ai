@@ -3,20 +3,32 @@ from backend.services.rag import search_documents
 from backend.schemas import LessonPlan, FlashcardSet, Quiz, MindMap
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
-from backend.core.config import settings
 import random
 
-llm = ChatOpenAI(
-    model="gpt-4o", temperature=0.7, openai_api_key=settings.OPENAI_API_KEY
-)
+from backend.services.settings import get_app_settings
 
 
-def generate_lesson_plan(topic: str, document_id: int, db: Session) -> LessonPlan:
+def get_llm(db: Session, temperature: float = 0.7):
+    settings_db = get_app_settings(db)
+
+    # Default to OpenAI
+    if not settings_db.openai_api_key:
+        raise ValueError("OpenAI API Key is not configured in settings.")
+
+    return ChatOpenAI(
+        model=settings_db.openai_model,
+        temperature=temperature,
+        openai_api_key=settings_db.openai_api_key,
+    )
+
+
+def generate_lesson_plan(topic: str, workspace_id: int, db: Session) -> LessonPlan:
     # 1. Retrieve context
-    chunks = search_documents(topic, document_id, db, k=8)
+    chunks = search_documents(topic, workspace_id, db, k=8)
     context = "\n".join([c.content for c in chunks])
 
     # 2. Structured generation
+    llm = get_llm(db)
     structured_llm = llm.with_structured_output(LessonPlan)
 
     prompt = ChatPromptTemplate.from_messages(
@@ -33,9 +45,9 @@ def generate_lesson_plan(topic: str, document_id: int, db: Session) -> LessonPla
     return chain.invoke({"context": context, "topic": topic})
 
 
-def generate_flashcards(topic: str, document_id: int, db: Session) -> FlashcardSet:
+def generate_flashcards(topic: str, workspace_id: int, db: Session) -> FlashcardSet:
     # Fetch larger pool of chunks to add variety
-    chunks = search_documents(topic, document_id, db, k=15)
+    chunks = search_documents(topic, workspace_id, db, k=15)
 
     # Shuffle and pick top 5-7 to ensure context varies but stays relevant
     if chunks:
@@ -45,6 +57,7 @@ def generate_flashcards(topic: str, document_id: int, db: Session) -> FlashcardS
 
     context = "\n".join([c.content for c in selected_chunks])
 
+    llm = get_llm(db)
     structured_llm = llm.with_structured_output(FlashcardSet)
 
     prompt = ChatPromptTemplate.from_messages(
@@ -61,9 +74,9 @@ def generate_flashcards(topic: str, document_id: int, db: Session) -> FlashcardS
     return chain.invoke({"context": context, "topic": topic})
 
 
-def generate_quiz(topic: str, document_id: int, db: Session) -> Quiz:
+def generate_quiz(topic: str, workspace_id: int, db: Session) -> Quiz:
     # Fetch larger pool of chunks
-    chunks = search_documents(topic, document_id, db, k=15)
+    chunks = search_documents(topic, workspace_id, db, k=15)
 
     # Randomly select subset
     if chunks:
@@ -73,6 +86,7 @@ def generate_quiz(topic: str, document_id: int, db: Session) -> Quiz:
 
     context = "\n".join([c.content for c in selected_chunks])
 
+    llm = get_llm(db)
     structured_llm = llm.with_structured_output(Quiz)
 
     prompt = ChatPromptTemplate.from_messages(
@@ -89,10 +103,11 @@ def generate_quiz(topic: str, document_id: int, db: Session) -> Quiz:
     return chain.invoke({"context": context, "topic": topic})
 
 
-def generate_mind_map(topic: str, document_id: int, db: Session) -> MindMap:
-    chunks = search_documents(topic, document_id, db, k=8)
+def generate_mind_map(topic: str, workspace_id: int, db: Session) -> MindMap:
+    chunks = search_documents(topic, workspace_id, db, k=8)
     context = "\n".join([c.content for c in chunks])
 
+    llm = get_llm(db)
     structured_llm = llm.with_structured_output(MindMap)
 
     prompt = ChatPromptTemplate.from_messages(

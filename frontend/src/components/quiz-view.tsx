@@ -32,10 +32,10 @@ interface RawQuizQuestion {
 }
 
 export default function QuizView({
-    documentId,
+    workspaceId,
     initialTopic = 'Key Concepts'
 }: {
-    documentId: string
+    workspaceId: number
     initialTopic?: string
 }) {
     const [quiz, setQuiz] = useState<Quiz | null>(null)
@@ -55,7 +55,7 @@ export default function QuizView({
         try {
             const res = await api.post('/generate/quiz', {
                 topic: initialTopic,
-                document_id: documentId
+                workspace_id: workspaceId
             })
 
             // Transform backend data (Schema mismatch fix)
@@ -81,7 +81,7 @@ export default function QuizView({
         } finally {
             setLoading(false)
         }
-    }, [documentId, initialTopic])
+    }, [workspaceId, initialTopic])
 
     // Auto-load if exists
     useEffect(() => {
@@ -89,7 +89,7 @@ export default function QuizView({
         const fetchExisting = async () => {
             try {
                 const res = await api.get('/generate/existing', {
-                    params: { document_id: documentId, topic: initialTopic }
+                    params: { workspace_id: workspaceId, topic: initialTopic }
                 })
                 if (!mounted) return
                 if (res.data.quiz) {
@@ -128,7 +128,7 @@ export default function QuizView({
         return () => {
             mounted = false
         }
-    }, [documentId, initialTopic])
+    }, [workspaceId, initialTopic])
 
     const handleOptionSelect = (questionIdx: number, optionLabel: string) => {
         // Prevent changing answer if already revealed/submitted

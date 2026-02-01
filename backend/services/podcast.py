@@ -6,7 +6,6 @@ import soundfile as sf
 from backend.services.rag import get_relevant_context
 from backend.services.narration import get_kokoro
 from backend.schemas import Podcast
-from backend.core.config import settings
 from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import PydanticOutputParser
@@ -17,15 +16,24 @@ os.makedirs(PODCAST_STORAGE_DIR, exist_ok=True)
 
 
 def generate_podcast_script(
-    topic: str, document_id: int, db: Session, podcast_type: str = "duo"
+    topic: str, workspace_id: int, db: Session, podcast_type: str = "duo"
 ) -> Podcast:
     """
-    Generates a conversational script based on the document context.
+    Generates a conversational script based on the workspace context.
     """
-    context = get_relevant_context(topic, document_id, db)
+    context = get_relevant_context(topic, workspace_id, db)
+
+    from backend.services.settings import get_app_settings
+
+    settings_db = get_app_settings(db)
+
+    if not settings_db.openai_api_key:
+        raise ValueError("OpenAI API Key is not configured in settings.")
 
     llm = ChatOpenAI(
-        model="gpt-4o", temperature=0.7, openai_api_key=settings.OPENAI_API_KEY
+        model=settings_db.openai_model,
+        temperature=0.7,
+        openai_api_key=settings_db.openai_api_key,
     )
 
     parser = PydanticOutputParser(pydantic_object=Podcast)

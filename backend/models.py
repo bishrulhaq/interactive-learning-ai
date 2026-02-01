@@ -1,5 +1,5 @@
+from typing import List, Optional, Any
 from sqlalchemy import (
-    Column,
     Integer,
     String,
     Text,
@@ -7,133 +7,190 @@ from sqlalchemy import (
     ForeignKey,
     JSON,
 )
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, Mapped, mapped_column
 from pgvector.sqlalchemy import Vector
 from backend.database import Base
 import datetime
 
 
+class Workspace(Base):
+    __tablename__ = "workspaces"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    name: Mapped[str] = mapped_column(String, index=True)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, default=datetime.datetime.utcnow
+    )
+
+    documents: Mapped[List["Document"]] = relationship(
+        "Document", back_populates="workspace", cascade="all, delete-orphan"
+    )
+    messages: Mapped[List["Message"]] = relationship(
+        "Message", back_populates="workspace", cascade="all, delete-orphan"
+    )
+    lessons: Mapped[List["GeneratedLesson"]] = relationship(
+        "GeneratedLesson", back_populates="workspace", cascade="all, delete-orphan"
+    )
+    flashcards: Mapped[List["GeneratedFlashcard"]] = relationship(
+        "GeneratedFlashcard", back_populates="workspace", cascade="all, delete-orphan"
+    )
+    quizzes: Mapped[List["GeneratedQuiz"]] = relationship(
+        "GeneratedQuiz", back_populates="workspace", cascade="all, delete-orphan"
+    )
+    mindmaps: Mapped[List["GeneratedMindMap"]] = relationship(
+        "GeneratedMindMap", back_populates="workspace", cascade="all, delete-orphan"
+    )
+    podcasts: Mapped[List["GeneratedPodcast"]] = relationship(
+        "GeneratedPodcast", back_populates="workspace", cascade="all, delete-orphan"
+    )
+
+
 class Document(Base):
     __tablename__ = "documents"
 
-    id = Column(Integer, primary_key=True, index=True)
-    title = Column(String, index=True)
-    file_path = Column(String)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
-    status = Column(String, default="pending")  # pending, processing, completed, failed
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    workspace_id: Mapped[int] = mapped_column(Integer, ForeignKey("workspaces.id"))
+    title: Mapped[str] = mapped_column(String, index=True)
+    file_path: Mapped[str] = mapped_column(String)
+    file_type: Mapped[str] = mapped_column(String)  # pdf, docx, pptx, image
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, default=datetime.datetime.utcnow
+    )
+    status: Mapped[str] = mapped_column(
+        String, default="pending"
+    )  # pending, processing, completed, failed
+    summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    toc: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
 
-    chunks = relationship(
+    workspace: Mapped["Workspace"] = relationship(
+        "Workspace", back_populates="documents"
+    )
+    chunks: Mapped[List["DocumentChunk"]] = relationship(
         "DocumentChunk", back_populates="document", cascade="all, delete-orphan"
-    )
-    messages = relationship(
-        "Message", back_populates="document", cascade="all, delete-orphan"
-    )
-    lessons = relationship(
-        "GeneratedLesson", back_populates="document", cascade="all, delete-orphan"
-    )
-    flashcards = relationship(
-        "GeneratedFlashcard", back_populates="document", cascade="all, delete-orphan"
-    )
-    quizzes = relationship(
-        "GeneratedQuiz", back_populates="document", cascade="all, delete-orphan"
-    )
-    mindmaps = relationship(
-        "GeneratedMindMap", back_populates="document", cascade="all, delete-orphan"
-    )
-    podcasts = relationship(
-        "GeneratedPodcast", back_populates="document", cascade="all, delete-orphan"
     )
 
 
 class GeneratedQuiz(Base):
     __tablename__ = "generated_quizzes"
 
-    id = Column(Integer, primary_key=True, index=True)
-    document_id = Column(Integer, ForeignKey("documents.id"))
-    topic = Column(String)
-    quiz_content = Column(JSON)  # Stores the full Quiz JSON
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    workspace_id: Mapped[int] = mapped_column(Integer, ForeignKey("workspaces.id"))
+    topic: Mapped[str] = mapped_column(String)
+    quiz_content: Mapped[Any] = mapped_column(JSON)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, default=datetime.datetime.utcnow
+    )
 
-    document = relationship("Document", back_populates="quizzes")
+    workspace: Mapped["Workspace"] = relationship("Workspace", back_populates="quizzes")
 
 
 class DocumentChunk(Base):
     __tablename__ = "document_chunks"
 
-    id = Column(Integer, primary_key=True, index=True)
-    document_id = Column(Integer, ForeignKey("documents.id"))
-    content: str = Column(Text)  # type: ignore
-    chunk_index = Column(Integer)
-    # Using 1536 dimensions for OpenAI text-embedding-3-small by default.
-    # If using local model (e.g. all-MiniLM-L6-v2), it's 384.
-    # Use generic Vector(None) or handle via migration if changing models frequently.
-    # For now, let's assume 1536 but we might need to change this dynamically or use a larger size and pad?
-    # Better: just use Vector without dimension enforcement if supported, or picking a convention.
-    # Postgres pgvector supports sparse vectors or different colums.
-    # Let's use 1536 to start. If user switches to HuggingFace, we might hit issues if we don't handle it.
-    # Warning: Embedding dimension mismatch will cause errors.
-    embedding = Column(Vector(1536))
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    document_id: Mapped[int] = mapped_column(Integer, ForeignKey("documents.id"))
+    workspace_id: Mapped[Optional[int]] = mapped_column(
+        Integer, ForeignKey("workspaces.id"), nullable=True
+    )
+    content: Mapped[str] = mapped_column(Text)
+    chunk_index: Mapped[int] = mapped_column(Integer)
+    embedding: Mapped[Any] = mapped_column(Vector(1536))
+    chunk_metadata: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
 
-    document = relationship("Document", back_populates="chunks")
+    document: Mapped["Document"] = relationship("Document", back_populates="chunks")
 
 
 class Message(Base):
     __tablename__ = "messages"
 
-    id = Column(Integer, primary_key=True, index=True)
-    document_id = Column(Integer, ForeignKey("documents.id"))
-    role = Column(String)  # user, assistant
-    content = Column(Text)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    workspace_id: Mapped[int] = mapped_column(Integer, ForeignKey("workspaces.id"))
+    role: Mapped[str] = mapped_column(String)  # user, assistant
+    content: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, default=datetime.datetime.utcnow
+    )
 
-    document = relationship("Document", back_populates="messages")
+    workspace: Mapped["Workspace"] = relationship(
+        "Workspace", back_populates="messages"
+    )
 
 
 class GeneratedLesson(Base):
     __tablename__ = "generated_lessons"
 
-    id = Column(Integer, primary_key=True, index=True)
-    document_id = Column(Integer, ForeignKey("documents.id"))
-    topic = Column(String)
-    content = Column(JSON)  # Stores the full LessonPlan JSON
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    workspace_id: Mapped[int] = mapped_column(Integer, ForeignKey("workspaces.id"))
+    topic: Mapped[str] = mapped_column(String)
+    content: Mapped[Any] = mapped_column(JSON)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, default=datetime.datetime.utcnow
+    )
 
-    document = relationship("Document", back_populates="lessons")
+    workspace: Mapped["Workspace"] = relationship("Workspace", back_populates="lessons")
 
 
 class GeneratedFlashcard(Base):
     __tablename__ = "generated_flashcards"
 
-    id = Column(Integer, primary_key=True, index=True)
-    document_id = Column(Integer, ForeignKey("documents.id"))
-    topic = Column(String)
-    flashcards = Column(JSON)  # Stores list of cards
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    workspace_id: Mapped[int] = mapped_column(Integer, ForeignKey("workspaces.id"))
+    topic: Mapped[str] = mapped_column(String)
+    flashcards: Mapped[Any] = mapped_column(JSON)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, default=datetime.datetime.utcnow
+    )
 
-    document = relationship("Document", back_populates="flashcards")
+    workspace: Mapped["Workspace"] = relationship(
+        "Workspace", back_populates="flashcards"
+    )
 
 
 class GeneratedMindMap(Base):
     __tablename__ = "generated_mindmaps"
 
-    id = Column(Integer, primary_key=True, index=True)
-    document_id = Column(Integer, ForeignKey("documents.id"))
-    topic = Column(String)
-    mindmap_content = Column(JSON)  # Stores the full MindMap JSON
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    workspace_id: Mapped[int] = mapped_column(Integer, ForeignKey("workspaces.id"))
+    topic: Mapped[str] = mapped_column(String)
+    mindmap_content: Mapped[Any] = mapped_column(JSON)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, default=datetime.datetime.utcnow
+    )
 
-    document = relationship("Document", back_populates="mindmaps")
+    workspace: Mapped["Workspace"] = relationship(
+        "Workspace", back_populates="mindmaps"
+    )
 
 
 class GeneratedPodcast(Base):
     __tablename__ = "generated_podcasts"
 
-    id = Column(Integer, primary_key=True, index=True)
-    document_id = Column(Integer, ForeignKey("documents.id"))
-    topic = Column(String)
-    script = Column(JSON)  # List of dialogue items: {"speaker": "Alex", "text": "..."}
-    audio_path = Column(String)  # Relative path to the generated .wav file
-    podcast_type = Column(String)  # single, duo
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    workspace_id: Mapped[int] = mapped_column(Integer, ForeignKey("workspaces.id"))
+    topic: Mapped[str] = mapped_column(String)
+    script: Mapped[Any] = mapped_column(JSON)
+    audio_path: Mapped[str] = mapped_column(String)
+    podcast_type: Mapped[str] = mapped_column(String)  # single, duo
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, default=datetime.datetime.utcnow
+    )
 
-    document = relationship("Document", back_populates="podcasts")
+    workspace: Mapped["Workspace"] = relationship(
+        "Workspace", back_populates="podcasts"
+    )
+
+
+class AppSettings(Base):
+    __tablename__ = "app_settings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    llm_provider: Mapped[str] = mapped_column(String, default="openai")
+    openai_api_key: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    openai_model: Mapped[str] = mapped_column(String, default="gpt-4o")
+    embedding_provider: Mapped[str] = mapped_column(String, default="openai")
+    embedding_model: Mapped[str] = mapped_column(
+        String, default="text-embedding-3-small"
+    )
+    updated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow
+    )

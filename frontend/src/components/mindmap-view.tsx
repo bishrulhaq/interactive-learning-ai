@@ -74,10 +74,10 @@ const getLayoutedElements = (
 }
 
 function MindMapInner({
-    documentId,
+    workspaceId,
     initialTopic = 'Key Concepts'
 }: {
-    documentId: string
+    workspaceId: number
     initialTopic?: string
 }) {
     const [nodes, setNodes, onNodesChange] = useNodesState<Node>([])
@@ -97,15 +97,15 @@ function MindMapInner({
                         n.type === 'input'
                             ? '#dbeafe'
                             : n.type === 'output'
-                              ? '#dcfce7'
-                              : '#ffffff',
+                                ? '#dcfce7'
+                                : '#ffffff',
                     border:
                         '1px solid ' +
                         (n.type === 'input'
                             ? '#2563eb'
                             : n.type === 'output'
-                              ? '#16a34a'
-                              : '#3b82f6'),
+                                ? '#16a34a'
+                                : '#3b82f6'),
                     borderRadius: '8px',
                     padding: '10px',
                     fontSize: '12px',
@@ -141,7 +141,7 @@ function MindMapInner({
         try {
             const res = await api.post('/generate/mindmap', {
                 topic: initialTopic,
-                document_id: documentId
+                workspace_id: workspaceId
             })
             processElements(res.data.nodes, res.data.edges)
         } catch (e) {
@@ -149,7 +149,7 @@ function MindMapInner({
         } finally {
             setLoading(false)
         }
-    }, [documentId, initialTopic, processElements])
+    }, [workspaceId, initialTopic, processElements])
 
     // Auto-load if exists
     useEffect(() => {
@@ -157,7 +157,7 @@ function MindMapInner({
         const fetchExisting = async () => {
             try {
                 const res = await api.get('/generate/existing', {
-                    params: { document_id: documentId, topic: initialTopic }
+                    params: { workspace_id: workspaceId, topic: initialTopic }
                 })
                 if (!mounted) return
                 if (res.data.mindmap) {
@@ -182,7 +182,7 @@ function MindMapInner({
         return () => {
             mounted = false
         }
-    }, [documentId, initialTopic, processElements, setNodes, setEdges])
+    }, [workspaceId, initialTopic, processElements, setNodes, setEdges])
 
     if (!generated && !loading) {
         return (
@@ -235,7 +235,7 @@ function MindMapInner({
 }
 
 export default function MindMapView(props: {
-    documentId: string
+    workspaceId: number
     initialTopic?: string
 }) {
     return (

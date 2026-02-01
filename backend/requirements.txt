@@ -13,3 +13,10 @@ langchain-huggingface
 sentence-transformers
 ruff
 mypy
+pymupdf4llm
+pymupdf
+pymupdf-layout
+celery[redis]
+python-docx
+python-pptx
+Pillow

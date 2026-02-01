@@ -25,6 +25,23 @@ This is a Retrieval-Augmented Generation (RAG) application designed to help stud
 *   **Styling**: Tailwind CSS, Lucide React
 *   **Language**: TypeScript
 
+## ⚡ Quick Start
+
+To start the entire environment (Database, Backend, and Frontend) at once:
+
+1.  Open PowerShell in the project root.
+2.  Run the starter script:
+    ```powershell
+    .\run-dev.ps1
+    ```
+
+This will automatically:
+- Start the PostgreSQL database via Docker.
+- Open a new terminal for the FastAPI backend.
+- Open a new terminal for the Next.js frontend.
+
+---
+
 ## ⚙️ Prerequisites
 
 *   **Docker Desktop** (for the database)
