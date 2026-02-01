@@ -11,10 +11,15 @@ import api from '@/lib/api'
 import { cn } from '@/lib/utils'
 import ReactMarkdown from 'react-markdown'
 import { useCallback } from 'react'
+import type { AxiosError } from 'axios'
 
 interface Message {
     role: 'user' | 'assistant'
     content: string
+}
+
+type ApiErrorData = {
+    detail?: string
 }
 
 export default function ChatInterface({ workspaceId }: { workspaceId: number }) {
@@ -193,7 +198,9 @@ export default function ChatInterface({ workspaceId }: { workspaceId: number }) 
             })
         } catch (error) {
             console.error(error)
-            setVoiceResponse('Sorry, I encountered an error.')
+            const axiosErr = error as AxiosError<ApiErrorData>
+            const detail = axiosErr.response?.data?.detail
+            setVoiceResponse(typeof detail === 'string' ? detail : 'Sorry, I encountered an error.')
         } finally {
             setLoading(false)
         }
@@ -286,11 +293,14 @@ export default function ChatInterface({ workspaceId }: { workspaceId: number }) 
             }
         } catch (error) {
             console.error(error)
+            const axiosErr = error as AxiosError<ApiErrorData>
+            const detail = axiosErr.response?.data?.detail
+            const msg = typeof detail === 'string' ? detail : 'Sorry, I encountered an error answering that.'
             setMessages((prev) => [
                 ...prev,
                 {
                     role: 'assistant',
-                    content: 'Sorry, I encountered an error answering that.'
+                    content: msg
                 }
             ])
         } finally {

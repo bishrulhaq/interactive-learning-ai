@@ -40,7 +40,13 @@ async def ingest_file(file: UploadFile, workspace_id: int, db: Session):
     """
     file_path = save_file(file)
     filename = file.filename or "uploaded_file"
-    db_doc = create_document_record(db, workspace_id, filename, file_path)
+    file_type = infer_file_type_from_filename(filename)
+    if file_type == "unknown":
+        raise ValueError(
+            f"Unsupported file type for '{filename}'. Supported: pdf, docx, pptx, jpg/jpeg/png/webp."
+        )
+
+    db_doc = create_document_record(db, workspace_id, filename, file_path, file_type)
 
     # Trigger background task
     from backend.tasks import process_document_task
@@ -80,12 +86,13 @@ def save_file(file: UploadFile) -> Path:
 
 
 def create_document_record(
-    db: Session, workspace_id: int, title: str, path: Path
+    db: Session, workspace_id: int, title: str, path: Path, file_type: str
 ) -> Document:
     doc = Document(
         workspace_id=workspace_id,
         title=title,
         file_path=str(path),
+        file_type=file_type,
         status="pending",
     )
 
@@ -94,6 +101,23 @@ def create_document_record(
     db.refresh(doc)
 
     return doc
+
+
+def infer_file_type_from_filename(filename: str) -> str:
+    """
+    Infer the application's `Document.file_type` from an uploaded filename.
+    Must be non-null due to DB constraint.
+    """
+    suffix = Path(filename).suffix.lower()
+    if suffix == ".pdf":
+        return "pdf"
+    if suffix in (".docx", ".doc"):
+        return "docx"
+    if suffix in (".pptx", ".ppt"):
+        return "pptx"
+    if suffix in (".jpg", ".jpeg", ".png", ".webp"):
+        return "image"
+    return "unknown"
 
 
 # ======================================================
@@ -113,7 +137,11 @@ def embed_and_store_pages(
     - Bulk DB insertion
     """
 
-    model = get_embeddings_model(db)
+    doc = db.get(Document, document_id)
+    if not doc:
+        return 0
+
+    model, dim, _, _ = get_embeddings_model(db, doc.workspace_id)
 
     all_rows: List[DocumentChunk] = []
     chunk_index = 0
@@ -138,15 +166,28 @@ def embed_and_store_pages(
                 prefix = extract_context_prefix(meta)
                 enriched_content = f"{prefix}\n\n{chunk.page_content}"
 
-                all_rows.append(
-                    DocumentChunk(
-                        document_id=document_id,
-                        content=enriched_content,
-                        chunk_index=chunk_index,
-                        embedding=vector,
-                        chunk_metadata=meta,
-                    )
-                )
+                chunk_args = {
+                    "document_id": document_id,
+                    "workspace_id": doc.workspace_id,
+                    "content": enriched_content,
+                    "chunk_index": chunk_index,
+                    "chunk_metadata": meta,
+                }
+
+                # Assign to correct embedding column
+                if dim == 1536:
+                    chunk_args["embedding_1536"] = vector
+                elif dim == 1024:
+                    chunk_args["embedding_1024"] = vector
+                elif dim == 768:
+                    chunk_args["embedding_768"] = vector
+                elif dim == 384:
+                    chunk_args["embedding_384"] = vector
+                else:
+                    # Generic fallback if we add more
+                    chunk_args["embedding_768"] = vector
+
+                all_rows.append(DocumentChunk(**chunk_args))
                 chunk_index += 1
 
     # ⭐ SINGLE BULK INSERT

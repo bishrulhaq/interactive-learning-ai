@@ -25,7 +25,7 @@ export function KeyWall({ message, className }: KeyWallProps) {
                 <div className="flex-1 text-center sm:text-left space-y-1">
                     <h3 className="text-lg font-bold text-amber-900">AI Configuration Required</h3>
                     <p className="text-amber-700/80 text-sm leading-relaxed">
-                        {message || "To start chatting with your documents, generating quizzes, or creating podcasts, you'll need to add your OpenAI API Key."}
+                        {message || "To start chatting with your documents, generating quizzes, or creating podcasts, you'll need to configure your AI settings in the dashboard."}
                     </p>
                 </div>
                 <Button

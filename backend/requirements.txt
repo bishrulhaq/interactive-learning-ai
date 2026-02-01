@@ -10,7 +10,9 @@ pypdf
 langchain
 langchain-openai
 langchain-huggingface
+langchain-ollama
 sentence-transformers
+huggingface_hub[hf_xet]
 ruff
 mypy
 pymupdf4llm

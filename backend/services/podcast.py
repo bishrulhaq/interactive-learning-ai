@@ -6,8 +6,6 @@ import soundfile as sf
 from backend.services.rag import get_relevant_context
 from backend.services.narration import get_kokoro
 from backend.schemas import Podcast
-from pydantic import SecretStr
-from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import PydanticOutputParser
 
@@ -24,18 +22,9 @@ def generate_podcast_script(
     """
     context = get_relevant_context(topic, workspace_id, db)
 
-    from backend.services.settings import get_app_settings
+    from backend.services.generator import get_llm
 
-    settings_db = get_app_settings(db)
-
-    if not settings_db.openai_api_key:
-        raise ValueError("OpenAI API Key is not configured in settings.")
-
-    llm = ChatOpenAI(
-        model=settings_db.openai_model,
-        temperature=0.7,
-        api_key=SecretStr(settings_db.openai_api_key),
-    )
+    llm = get_llm(db, workspace_id, temperature=0.7)
 
     parser = PydanticOutputParser(pydantic_object=Podcast)
 

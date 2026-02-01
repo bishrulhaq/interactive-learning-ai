@@ -2,10 +2,9 @@ from pathlib import Path
 from typing import List
 from sqlalchemy.orm import Session
 import logging
-
 from backend.celery_app import celery_app
 from backend.database import SessionLocal
-from backend.models import Document, DocumentChunk
+from backend.models import Document, DocumentChunk, Workspace
 from backend.services.embeddings import get_embeddings_model
 from backend.services.ingestion import (
     promote_structural_markers,
@@ -56,7 +55,7 @@ def process_document_task(document_id: int):
             content_pages = _process_pptx(file_path)
             db_doc.file_type = "pptx"
         elif ext in [".jpg", ".jpeg", ".png", ".webp"]:
-            content_pages = _process_image(file_path, db)
+            content_pages = _process_image(file_path, db, db_doc.workspace_id)
             db_doc.file_type = "image"
         else:
             raise ValueError(f"Unsupported file extension: {ext}")
@@ -70,9 +69,10 @@ def process_document_task(document_id: int):
             f"Successfully processed document {document_id} ({total_chunks} chunks)"
         )
 
-    except Exception:
+    except Exception as e:
         logger.exception(f"Error processing document {document_id}")
         db_doc.status = "failed"
+        db_doc.error_message = str(e)
         db.commit()
     finally:
         db.close()
@@ -102,7 +102,7 @@ def _process_pptx(path: Path) -> List[dict]:
     return content_pages
 
 
-def _process_image(path: Path, db: Session) -> List[dict]:
+def _process_image(path: Path, db: Session, workspace_id: int) -> List[dict]:
     """
     Uses Vision LLM to describe the image.
     """
@@ -115,14 +115,22 @@ def _process_image(path: Path, db: Session) -> List[dict]:
     with open(path, "rb") as image_file:
         encoded_string = base64.b64encode(image_file.read()).decode("utf-8")
 
+    # Images currently require OpenAI Vision. We intentionally allow using Ollama for chat/LLM,
+    # but still use OpenAI here if a key is configured.
     if not settings_db.openai_api_key:
         raise ValueError(
-            "OpenAI API Key is not configured in settings. Cannot process images."
+            "Image processing requires OpenAI Vision, but no OpenAI API key is configured. "
+            "Add your key in Settings or upload a PDF/Word/PPT instead."
         )
+
+    workspace = db.get(Workspace, workspace_id)
+    vision_model = settings_db.openai_model or "gpt-4o"
+    if workspace and workspace.llm_provider == "openai" and workspace.llm_model:
+        vision_model = workspace.llm_model
 
     client = openai.OpenAI(api_key=settings_db.openai_api_key)
     response = client.chat.completions.create(
-        model=settings_db.openai_model,
+        model=vision_model,
         messages=[
             {
                 "role": "user",
@@ -150,7 +158,12 @@ def _process_image(path: Path, db: Session) -> List[dict]:
 
 
 def store_processed_content(db, db_doc, pages: List[dict]) -> int:
-    model = get_embeddings_model(db)
+    model, dim, provider, model_name = get_embeddings_model(db, db_doc.workspace_id)
+
+    # Record the model used for this document
+    db_doc.embedding_provider = provider
+    db_doc.embedding_model = model_name
+    db.commit()
     all_rows: List[DocumentChunk] = []
     chunk_index = 0
 
@@ -179,16 +192,27 @@ def store_processed_content(db, db_doc, pages: List[dict]) -> int:
                 prefix = f"Context: {' > '.join(headers) if headers else db_doc.title} (Page {page_num})"
                 enriched_content = f"{prefix}\n\n{chunk.page_content}"
 
-                all_rows.append(
-                    DocumentChunk(
-                        document_id=db_doc.id,
-                        workspace_id=db_doc.workspace_id,
-                        content=enriched_content,
-                        chunk_index=chunk_index,
-                        embedding=vector,
-                        chunk_metadata=meta,
-                    )
-                )
+                chunk_args = {
+                    "document_id": db_doc.id,
+                    "workspace_id": db_doc.workspace_id,
+                    "content": enriched_content,
+                    "chunk_index": chunk_index,
+                    "chunk_metadata": meta,
+                }
+
+                # Assign to correct embedding column
+                if dim == 1536:
+                    chunk_args["embedding_1536"] = vector
+                elif dim == 1024:
+                    chunk_args["embedding_1024"] = vector
+                elif dim == 768:
+                    chunk_args["embedding_768"] = vector
+                elif dim == 384:
+                    chunk_args["embedding_384"] = vector
+                else:
+                    chunk_args["embedding_768"] = vector
+
+                all_rows.append(DocumentChunk(**chunk_args))
                 chunk_index += 1
 
     db.add_all(all_rows)

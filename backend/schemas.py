@@ -14,6 +14,9 @@ class DocumentOut(BaseModel):
     file_path: str
     file_type: Optional[str]
     status: str
+    embedding_provider: Optional[str] = None
+    embedding_model: Optional[str] = None
+    error_message: Optional[str] = None
     created_at: datetime
 
     class Config:
@@ -24,6 +27,13 @@ class WorkspaceOut(BaseModel):
     id: int
     name: str
     created_at: datetime
+
+    # Workspace-specific AI Settings
+    embedding_provider: Optional[str] = "openai"
+    embedding_model: Optional[str] = "text-embedding-3-small"
+    llm_provider: Optional[str] = "openai"
+    llm_model: Optional[str] = "gpt-4o"
+    ollama_base_url: Optional[str] = "http://localhost:11434"
 
     class Config:
         from_attributes = True
@@ -95,11 +105,12 @@ class Podcast(BaseModel):
 
 
 class AppSettings(BaseModel):
-    llm_provider: str = "openai"
+    llm_provider: Optional[str] = "openai"
     openai_api_key: Optional[str] = None
-    openai_model: str = "gpt-4o"
-    embedding_provider: str = "openai"
-    embedding_model: str = "text-embedding-3-small"
+    openai_model: Optional[str] = "gpt-4o"
+    embedding_provider: Optional[str] = "openai"
+    embedding_model: Optional[str] = "text-embedding-3-small"
+    ollama_base_url: Optional[str] = "http://localhost:11434"
     updated_at: Optional[datetime] = None
 
     class Config:
@@ -112,3 +123,4 @@ class AppSettingsUpdate(BaseModel):
     openai_model: Optional[str] = None
     embedding_provider: Optional[str] = None
     embedding_model: Optional[str] = None
+    ollama_base_url: Optional[str] = None

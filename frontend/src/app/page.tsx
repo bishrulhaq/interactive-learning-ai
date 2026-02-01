@@ -18,7 +18,6 @@ import {
     Plus,
     Settings,
     Loader2,
-    Sparkles,
     LayoutGrid,
     Search,
     RefreshCw,
@@ -39,7 +38,7 @@ export default function Home() {
     const [newWorkspaceName, setNewWorkspaceName] = useState('')
     const [isCreating, setIsCreating] = useState(false)
     const [searchQuery, setSearchQuery] = useState('')
-    const [hasApiKey, setHasApiKey] = useState(true)
+    const [isAiReady, setIsAiReady] = useState(true)
     const [connectionError, setConnectionError] = useState(false)
     const router = useRouter()
 
@@ -55,9 +54,17 @@ export default function Home() {
             const wsRes = await api.get('/workspaces')
             setWorkspaces(wsRes.data)
 
-            // Check settings for API key
+            // Check settings for readiness
             const settingsRes = await api.get('/settings')
-            setHasApiKey(!!settingsRes.data.openai_api_key)
+            const llmReady = settingsRes.data.llm_provider === 'openai'
+                ? !!settingsRes.data.openai_api_key
+                : !!settingsRes.data.ollama_base_url
+
+            const embedReady = settingsRes.data.embedding_provider === 'openai'
+                ? !!settingsRes.data.openai_api_key
+                : true // HuggingFace is local
+
+            setIsAiReady(llmReady && embedReady)
         } catch (err) {
             console.error('Failed to fetch initial data', err)
             setConnectionError(true)
@@ -124,20 +131,17 @@ export default function Home() {
                     </div>
                 )}
 
-                {/* API Key Warning */}
-                {!connectionError && !hasApiKey && !loading && (
+                {/* AI Configuration Warning */}
+                {!connectionError && !isAiReady && !loading && (
                     <div className="max-w-4xl mx-auto mb-16">
-                        <KeyWall />
+                        <KeyWall
+                            message="To start using AI features, please configure your providers in settings."
+                        />
                     </div>
                 )}
 
                 {/* Hero section */}
                 <div className="max-w-4xl mx-auto text-center space-y-8 mb-24">
-                    <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-blue-50 text-blue-600 border border-blue-100 text-sm font-medium animate-in fade-in slide-in-from-bottom-4 duration-1000">
-                        <Sparkles className="w-4 h-4" />
-                        <span>Powered by Advanced RAG</span>
-                    </div>
-
                     <h1 className="text-5xl md:text-7xl font-bold tracking-tight bg-clip-text text-transparent bg-gradient-to-b from-slate-900 to-slate-600 animate-in fade-in slide-in-from-bottom-8 duration-1000 delay-100">
                         Master Any Subject <br />With Your AI Tutor
                     </h1>

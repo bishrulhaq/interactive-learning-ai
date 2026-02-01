@@ -37,12 +37,20 @@ if ($runningIds) {
 # 3. Start Backend (FastAPI) in a new window
 Write-Host " "
 Write-Host "--- Starting Backend (FastAPI) ---" -ForegroundColor Cyan
-$BackendCommand = ".\backend\venv\Scripts\activate; uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000"
+# IMPORTANT:
+# Limit reload watching to backend-only. If `--reload` watches the whole repo, saving files in `frontend/`
+# can trigger backend restarts and cause frequent "Backend Unreachable" in the UI.
+$BackendCommand = ".\backend\venv\Scripts\activate; uvicorn backend.main:app --reload --reload-dir backend --host 0.0.0.0 --port 8000"
 Start-Process powershell -ArgumentList "-NoExit", "-Command", "$BackendCommand" -WindowStyle Normal
 
 # 4. Start Celery Worker in a new window
 Write-Host "--- Starting Celery Worker ---" -ForegroundColor Cyan
-$CeleryCommand = ".\backend\venv\Scripts\activate; celery -A backend.celery_app worker --loglevel=info -P solo"
+# Ensure log directory exists (used by Study → Output panel)
+if (-not (Test-Path ".\\storage\\logs")) {
+    New-Item -ItemType Directory -Path ".\\storage\\logs" | Out-Null
+}
+
+$CeleryCommand = ".\backend\venv\Scripts\activate; celery -A backend.celery_app worker --loglevel=info -P solo --logfile .\\storage\\logs\\celery.log"
 Start-Process powershell -ArgumentList "-NoExit", "-Command", "$CeleryCommand" -WindowStyle Normal
 
 # 5. Start Frontend (Next.js) in a new window

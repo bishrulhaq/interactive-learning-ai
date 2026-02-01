@@ -1,10 +1,8 @@
 from typing import List, cast
-from pydantic import SecretStr
 from sqlalchemy.orm import Session
 from sqlalchemy import select
 from backend.models import DocumentChunk
 from backend.services.embeddings import get_embeddings_model
-from langchain_openai import ChatOpenAI
 from langchain_core.messages import SystemMessage, HumanMessage
 
 
@@ -14,13 +12,25 @@ def search_documents(
     """
     Semantic search using pgvector, filtered by workspace_id.
     """
-    embedding_model = get_embeddings_model(db)
+    embedding_model, dim, _, _ = get_embeddings_model(db, workspace_id)
     query_vector = embedding_model.embed_query(query)
+
+    # Determine which column to search
+    if dim == 1536:
+        vector_col = DocumentChunk.embedding_1536
+    elif dim == 1024:
+        vector_col = DocumentChunk.embedding_1024
+    elif dim == 768:
+        vector_col = DocumentChunk.embedding_768
+    elif dim == 384:
+        vector_col = DocumentChunk.embedding_384
+    else:
+        vector_col = DocumentChunk.embedding_768
 
     stmt = (
         select(DocumentChunk)
         .filter(DocumentChunk.workspace_id == workspace_id)  # type: ignore
-        .order_by(DocumentChunk.embedding.cosine_distance(query_vector))
+        .order_by(vector_col.cosine_distance(query_vector))
         .limit(k)
     )
     results = db.scalars(stmt).all()
@@ -59,18 +69,9 @@ def chat_with_docs(query: str, workspace_id: int, db: Session) -> str:
     context_text = "\n\n".join(context_parts)
 
     # 2. Generate Answer
-    from backend.services.settings import get_app_settings
+    from backend.services.generator import get_llm
 
-    settings_db = get_app_settings(db)
-
-    if not settings_db.openai_api_key:
-        return "Error: OpenAI API Key is not configured in settings. Please go to the settings page and add your key."
-
-    llm = ChatOpenAI(
-        model=settings_db.openai_model,
-        temperature=0,
-        api_key=SecretStr(settings_db.openai_api_key),
-    )
+    llm = get_llm(db, workspace_id)
 
     system_prompt = f"""You are an educational assistant. Use the following context from the workspace to answer the user's question.
 The context contains information from multiple documents (PDFs, Word, PPTs, or images).

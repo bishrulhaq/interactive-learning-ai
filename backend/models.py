@@ -22,6 +22,13 @@ class Workspace(Base):
         DateTime, default=datetime.datetime.utcnow
     )
 
+    # Workspace-specific AI Settings (if None, use global AppSettings)
+    embedding_provider: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    embedding_model: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    llm_provider: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    llm_model: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    ollama_base_url: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+
     documents: Mapped[List["Document"]] = relationship(
         "Document", back_populates="workspace", cascade="all, delete-orphan"
     )
@@ -53,6 +60,8 @@ class Document(Base):
     title: Mapped[str] = mapped_column(String, index=True)
     file_path: Mapped[str] = mapped_column(String)
     file_type: Mapped[str] = mapped_column(String)  # pdf, docx, pptx, image
+    embedding_provider: Mapped[Optional[str]] = mapped_column(String, nullable=True)
+    embedding_model: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime, default=datetime.datetime.utcnow
     )
@@ -61,6 +70,7 @@ class Document(Base):
     )  # pending, processing, completed, failed
     summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
     toc: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
+    error_message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     workspace: Mapped["Workspace"] = relationship(
         "Workspace", back_populates="documents"
@@ -94,7 +104,21 @@ class DocumentChunk(Base):
     )
     content: Mapped[str] = mapped_column(Text)
     chunk_index: Mapped[int] = mapped_column(Integer)
-    embedding: Mapped[Any] = mapped_column(Vector(1536))
+
+    # Supported Vector Dimensions
+    embedding_1536: Mapped[Optional[Any]] = mapped_column(
+        Vector(1536), nullable=True
+    )  # OpenAI / Large HF
+    embedding_1024: Mapped[Optional[Any]] = mapped_column(
+        Vector(1024), nullable=True
+    )  # Large HF (BGE-Large)
+    embedding_768: Mapped[Optional[Any]] = mapped_column(
+        Vector(768), nullable=True
+    )  # Mistral / Mid HF
+    embedding_384: Mapped[Optional[Any]] = mapped_column(
+        Vector(384), nullable=True
+    )  # MiniLM / Small HF
+
     chunk_metadata: Mapped[Optional[Any]] = mapped_column(JSON, nullable=True)
 
     document: Mapped["Document"] = relationship("Document", back_populates="chunks")
@@ -190,6 +214,9 @@ class AppSettings(Base):
     embedding_provider: Mapped[str] = mapped_column(String, default="openai")
     embedding_model: Mapped[str] = mapped_column(
         String, default="text-embedding-3-small"
+    )
+    ollama_base_url: Mapped[str] = mapped_column(
+        String, default="http://localhost:11434"
     )
     updated_at: Mapped[datetime.datetime] = mapped_column(
         DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow

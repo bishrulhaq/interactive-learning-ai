@@ -5,10 +5,15 @@ import { Card } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Loader2, RefreshCw } from 'lucide-react'
 import api from '@/lib/api'
+import type { AxiosError } from 'axios'
 
 interface Flashcard {
     front: string
     back: string
+}
+
+type ApiErrorData = {
+    detail?: string
 }
 export default function FlashcardView({
     workspaceId,
@@ -20,10 +25,12 @@ export default function FlashcardView({
     const [cards, setCards] = useState<Flashcard[]>([])
     const [loading, setLoading] = useState(true)
     const [flipped, setFlipped] = useState<number | null>(null)
+    const [error, setError] = useState<string | null>(null)
 
     const generateCards = useCallback(async () => {
         setLoading(true)
         setCards([])
+        setError(null)
         try {
             const res = await api.post('/generate/flashcards', {
                 topic: initialTopic,
@@ -32,6 +39,9 @@ export default function FlashcardView({
             setCards(res.data.cards)
         } catch (e) {
             console.error(e)
+            const axiosErr = e as AxiosError<ApiErrorData>
+            const detail = axiosErr.response?.data?.detail
+            setError(typeof detail === 'string' ? detail : 'Failed to generate flashcards.')
         } finally {
             setLoading(false)
         }
@@ -70,6 +80,11 @@ export default function FlashcardView({
                 <p className="text-slate-500">
                     Generate flashcards to test your knowledge.
                 </p>
+                {error && (
+                    <p className="text-sm text-red-600 max-w-md">
+                        {error}
+                    </p>
+                )}
                 <Button onClick={generateCards}>Generate Flashcards</Button>
             </div>
         )
