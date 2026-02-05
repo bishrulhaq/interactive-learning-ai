@@ -32,21 +32,35 @@ This is a Retrieval-Augmented Generation (RAG) app designed to help students and
 
 To start the entire environment (Database, Backend, and Frontend) at once:
 
+### Windows
 1.  Open PowerShell in the project root.
 2.  Run the starter script:
     ```powershell
     .\run-dev.ps1
     ```
 
-This will automatically:
+### Linux
+1.  Open a terminal in the project root.
+2.  Run the starter script:
+    ```bash
+    ./dev.sh
+    ```
+    Or with sudo if Docker requires it:
+    ```bash
+    sudo ./dev.sh
+    ```
+
+Both scripts will automatically:
 - Start PostgreSQL + Redis via Docker Compose
 - Start FastAPI backend on `http://localhost:8000`
 - Start Celery worker (used for document processing)
 - Start Next.js frontend on `http://localhost:3000`
 
 ### Dev stability notes
-- **Backend reload**: `run-dev.ps1` starts Uvicorn with `--reload-dir backend` so editing `frontend/` won’t constantly restart the backend (reduces “Backend Unreachable”).
+- **Backend reload**: The scripts start Uvicorn with `--reload-dir backend` so editing `frontend/` won't constantly restart the backend (reduces "Backend Unreachable").
 - **Worker logs**: Celery is started with `--logfile storage/logs/celery.log` so the UI can show worker output.
+- **Linux permissions**: If Docker access is denied on Linux, the `dev.sh` script will automatically attempt to re-run with sudo. Alternatively, add your user to the docker group: `sudo usermod -aG docker $USER` (requires logout/login).
+- **Virtual environment**: On Linux, `dev.sh` automatically creates and activates the Python virtual environment. On Windows, `run-dev.ps1` assumes the venv exists in `backend/venv`.
 
 ---
 
