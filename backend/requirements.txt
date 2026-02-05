@@ -11,7 +11,10 @@ langchain
 langchain-openai
 langchain-huggingface
 langchain-ollama
+langchain-text-splitters
 sentence-transformers
+kokoro_onnx
+soundfile
 huggingface_hub[hf_xet]
 ruff
 mypy

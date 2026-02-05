@@ -1,5 +1,19 @@
 # RAG Education Platform - Local Development Starter
 
+# NOTE: This script requires Docker access and administrative privileges.
+# On Windows: Run PowerShell as Administrator before executing this script.
+# On Linux/Mac: You may need to run with sudo or add your user to the docker group.
+
+# Check if running as Administrator (Windows) or with sudo access (Linux/Mac)
+$isAdmin = [bool]([System.Security.Principal.WindowsIdentity]::GetCurrent().Groups -match "S-1-5-32-544")
+
+if (-not $isAdmin) {
+    Write-Host "[!] This script needs to be run as Administrator." -ForegroundColor Red
+    Write-Host "[>] Attempting to re-launch with elevated privileges..." -ForegroundColor Yellow
+    Start-Process powershell -ArgumentList "-NoExit", "-File", $PSCommandPath -Verb RunAs
+    exit 0
+}
+
 # 1. Check Docker Status
 Write-Host "--- Checking Docker Status ---" -ForegroundColor Cyan
 $dockerRunning = $false
