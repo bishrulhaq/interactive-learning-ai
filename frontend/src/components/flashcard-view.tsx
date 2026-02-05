@@ -41,7 +41,11 @@ export default function FlashcardView({
             console.error(e)
             const axiosErr = e as AxiosError<ApiErrorData>
             const detail = axiosErr.response?.data?.detail
-            setError(typeof detail === 'string' ? detail : 'Failed to generate flashcards.')
+            setError(
+                typeof detail === 'string'
+                    ? detail
+                    : 'Failed to generate flashcards.'
+            )
         } finally {
             setLoading(false)
         }
@@ -77,11 +81,11 @@ export default function FlashcardView({
         return (
             <div className="flex flex-col items-center justify-center h-full p-8 text-center space-y-4">
                 <h3 className="text-xl font-semibold">AI Flashcards</h3>
-                <p className="text-slate-500">
+                <p className="text-muted-foreground">
                     Generate flashcards to test your knowledge.
                 </p>
                 {error && (
-                    <p className="text-sm text-red-600 max-w-md">
+                    <p className="text-sm text-red-600 dark:text-red-200 max-w-md">
                         {error}
                     </p>
                 )}
@@ -128,26 +132,26 @@ export default function FlashcardView({
                         >
                             {/* Front */}
                             <Card
-                                className="absolute w-full h-full flex items-center justify-center p-6 text-center bg-white hover:border-blue-400 transition-colors"
+                                className="absolute w-full h-full flex items-center justify-center p-6 text-center bg-card hover:border-blue-400 dark:hover:border-blue-400/50 transition-colors"
                                 style={{ backfaceVisibility: 'hidden' }}
                             >
                                 <p className="font-semibold text-lg">
                                     {card.front}
                                 </p>
-                                <span className="absolute bottom-4 text-xs text-slate-400">
+                                <span className="absolute bottom-4 text-xs text-muted-foreground">
                                     Click to flip
                                 </span>
                             </Card>
 
                             {/* Back */}
                             <Card
-                                className="absolute w-full h-full flex items-center justify-center p-6 text-center bg-blue-50 border-blue-200"
+                                className="absolute w-full h-full flex items-center justify-center p-6 text-center bg-blue-50 dark:bg-blue-950/30 border-blue-200 dark:border-blue-900/40"
                                 style={{
                                     backfaceVisibility: 'hidden',
                                     transform: 'rotateY(180deg)'
                                 }}
                             >
-                                <p className="text-slate-800">{card.back}</p>
+                                <p className="text-foreground">{card.back}</p>
                             </Card>
                         </div>
                     </div>

@@ -1,6 +1,8 @@
 import type { Metadata } from 'next'
 import { Geist, Geist_Mono, Outfit } from 'next/font/google'
+import Script from 'next/script'
 import './globals.css'
+import ThemeToggleNoSSR from '../components/theme-toggle-nossr'
 
 const geistSans = Geist({
     variable: '--font-geist-sans',
@@ -28,11 +30,26 @@ export default function RootLayout({
     children: React.ReactNode
 }>) {
     return (
-        <html lang="en">
+        <html lang="en" suppressHydrationWarning>
+            <head>
+                <Script id="theme-init" strategy="beforeInteractive">{`
+                (function () {
+                  try {
+                    var theme = localStorage.getItem('theme'); // 'light' | 'dark' | null
+                    var systemDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+                    var shouldDark = theme === 'dark' || (theme === null && systemDark);
+                    var root = document.documentElement;
+                    if (shouldDark) root.classList.add('dark');
+                    else root.classList.remove('dark');
+                  } catch (e) {}
+                })();
+                `}</Script>
+            </head>
             <body
                 className={`${geistSans.variable} ${geistMono.variable} ${outfit.variable} antialiased`}
             >
                 {children}
+                <ThemeToggleNoSSR />
             </body>
         </html>
     )

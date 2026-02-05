@@ -126,6 +126,29 @@
 }
 
 @layer utilities {
+    /* Dark mode: flatter UI (no drop-shadows) */
+    .dark [class*='shadow-'],
+    .dark [class*='drop-shadow'] {
+        box-shadow: none !important;
+        filter: none !important;
+    }
+
+    /* React Flow (Mind Map) dark styling */
+    .react-flow__controls,
+    .react-flow__controls button {
+        box-shadow: none !important;
+    }
+
+    .react-flow__controls button {
+        background: var(--card) !important;
+        color: var(--foreground) !important;
+        border: 1px solid var(--border) !important;
+    }
+
+    .react-flow__controls button:hover {
+        background: var(--accent) !important;
+    }
+
     .perspective {
         perspective: 1000px;
     }

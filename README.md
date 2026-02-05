@@ -1,4 +1,4 @@
-# Interactive Learning AI Platform
+# Open Study Note AI
 
 This is a Retrieval-Augmented Generation (RAG) app designed to help students and educators generate study materials from their own documents. Upload PDFs / Word / PowerPoint (and optionally images), then chat with your content and generate lesson plans, flashcards, quizzes, mindmaps, and podcasts.
 

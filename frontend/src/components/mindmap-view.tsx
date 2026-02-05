@@ -8,7 +8,6 @@ import {
     useNodesState,
     useEdgesState,
     ConnectionLineType,
-    Panel,
     Node,
     Edge,
     ReactFlowProvider
@@ -95,24 +94,24 @@ function MindMapInner({
                 style: {
                     background:
                         n.type === 'input'
-                            ? '#dbeafe'
+                            ? 'rgb(59 130 246 / 0.10)'
                             : n.type === 'output'
-                                ? '#dcfce7'
-                                : '#ffffff',
+                              ? 'rgb(16 185 129 / 0.10)'
+                              : 'var(--card)',
                     border:
                         '1px solid ' +
                         (n.type === 'input'
-                            ? '#2563eb'
+                            ? 'rgb(59 130 246 / 0.65)'
                             : n.type === 'output'
-                                ? '#16a34a'
-                                : '#3b82f6'),
+                              ? 'rgb(16 185 129 / 0.65)'
+                              : 'rgb(148 163 184 / 0.45)'),
                     borderRadius: '8px',
                     padding: '10px',
                     fontSize: '12px',
                     fontWeight: 'bold',
                     width: nodeWidth,
                     textAlign: 'center' as const,
-                    boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)'
+                    color: 'var(--foreground)'
                 }
             }))
 
@@ -205,8 +204,8 @@ function MindMapInner({
     }
 
     return (
-        <div className="h-full flex flex-col relative bg-slate-50">
-            <div className="p-4 border-b flex justify-between items-center bg-white z-10 shadow-sm">
+        <div className="h-full flex flex-col relative bg-background">
+            <div className="p-4 border-b border-border flex justify-between items-center bg-card/60 backdrop-blur-md z-10">
                 <h2 className="font-bold text-lg">Mind Map: {initialTopic}</h2>
                 <Button variant="outline" size="sm" onClick={generateMindMap}>
                     <RefreshCw className="w-4 h-4 mr-2" /> Regenerate
@@ -223,11 +222,8 @@ function MindMapInner({
                     proOptions={{ hideAttribution: true }}
                     fitView
                 >
-                    <Background color="#cbd5e1" gap={20} />
+                    <Background color="rgb(148 163 184 / 0.35)" gap={20} />
                     <Controls showInteractive={false} />
-                    <Panel position="bottom-right" className="flex gap-2">
-                        {/* Additional custom panel controls could go here */}
-                    </Panel>
                 </ReactFlow>
             </div>
         </div>

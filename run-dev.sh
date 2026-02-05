@@ -91,4 +91,4 @@ echo "All components starting!"
 echo "Frontend:    http://localhost:3000"
 echo "Backend API: http://localhost:8000/docs"
 echo "Database:    localhost:5300"
-echo ""`
+echo ""

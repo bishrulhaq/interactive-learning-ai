@@ -159,7 +159,7 @@ export default function QuizView({
         return (
             <div className="flex flex-col items-center justify-center h-full p-8 text-center space-y-4">
                 <h3 className="text-xl font-semibold">AI Quiz Generator</h3>
-                <p className="text-slate-500">
+                <p className="text-muted-foreground">
                     Generate a multiple-choice quiz to test your mastery.
                 </p>
                 <Button onClick={generateQuiz}>Generate Quiz</Button>
@@ -205,23 +205,24 @@ export default function QuizView({
                                     const isCorrect =
                                         opt.label === q.correct_answer
                                     let optionClass =
-                                        'border p-3 rounded-lg flex items-center cursor-pointer transition-colors text-slate-700 '
+                                        'border p-3 rounded-lg flex items-center cursor-pointer transition-colors text-foreground '
 
                                     if (isQuestionRevealed) {
                                         if (isCorrect)
                                             optionClass +=
-                                                'bg-green-50 border-green-200 text-green-800 '
+                                                'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-900/40 text-emerald-800 dark:text-emerald-100 '
                                         else if (isSelected && !isCorrect)
                                             optionClass +=
-                                                'bg-red-50 border-red-200 text-red-800 '
+                                                'bg-red-50 dark:bg-red-950/30 border-red-200 dark:border-red-900/40 text-red-800 dark:text-red-100 '
                                         else
                                             optionClass +=
-                                                'bg-slate-50 opacity-60 '
+                                                'bg-muted/30 opacity-70 '
                                     } else {
                                         if (isSelected)
                                             optionClass +=
-                                                'bg-blue-50 border-blue-500 text-blue-900 '
-                                        else optionClass += 'hover:bg-slate-50 '
+                                                'bg-blue-50 dark:bg-blue-950/30 border-blue-500 dark:border-blue-400/50 text-blue-900 dark:text-blue-100 '
+                                        else
+                                            optionClass += 'hover:bg-accent/30 '
                                     }
 
                                     return (
@@ -241,8 +242,8 @@ export default function QuizView({
                                                     isSelected ||
                                                         (isQuestionRevealed &&
                                                             isCorrect)
-                                                        ? 'border-transparent bg-white/50'
-                                                        : 'border-slate-300 bg-white'
+                                                        ? 'border-transparent bg-background/60 dark:bg-background/10'
+                                                        : 'border-border bg-background dark:bg-background/5'
                                                 )}
                                             >
                                                 {opt.label}
@@ -250,19 +251,19 @@ export default function QuizView({
                                             <span>{opt.text}</span>
                                             {isQuestionRevealed &&
                                                 isCorrect && (
-                                                    <CheckCircle className="w-5 h-5 ml-auto text-green-600" />
+                                                    <CheckCircle className="w-5 h-5 ml-auto text-emerald-600 dark:text-emerald-200" />
                                                 )}
                                             {isQuestionRevealed &&
                                                 isSelected &&
                                                 !isCorrect && (
-                                                    <XCircle className="w-5 h-5 ml-auto text-red-600" />
+                                                    <XCircle className="w-5 h-5 ml-auto text-red-600 dark:text-red-200" />
                                                 )}
                                         </div>
                                     )
                                 })}
                             </div>
                             {isQuestionRevealed && (
-                                <div className="mt-4 p-4 bg-slate-50 rounded-lg text-sm text-slate-700">
+                                <div className="mt-4 p-4 bg-muted/30 border border-border rounded-lg text-sm text-muted-foreground">
                                     <span className="font-semibold">
                                         Explanation:
                                     </span>{' '}

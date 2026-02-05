@@ -101,7 +101,7 @@ export default function PodcastView({
                     setProgress(
                         (audioRef.current.currentTime /
                             audioRef.current.duration) *
-                        100
+                            100
                     )
                 }
             }
@@ -136,26 +136,26 @@ export default function PodcastView({
         <div className="p-6 max-w-4xl mx-auto space-y-8">
             <div className="flex items-center justify-between">
                 <div>
-                    <h2 className="text-3xl font-bold text-slate-900 flex items-center gap-3">
+                    <h2 className="text-3xl font-bold text-foreground flex items-center gap-3">
                         <Mic className="text-blue-600 w-8 h-8" />
                         AI Deep Dive
                     </h2>
-                    <p className="text-slate-500 mt-1">
+                    <p className="text-muted-foreground mt-1">
                         Turn your document into an engaging conversation.
                     </p>
                 </div>
             </div>
 
             {!podcast ? (
-                <Card className="border-dashed border-2 bg-slate-50/50">
+                <Card className="border-dashed border-2 bg-muted/20">
                     <CardContent className="flex flex-col items-center justify-center p-12 text-center">
-                        <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mb-6">
+                        <div className="w-16 h-16 bg-blue-500/10 rounded-full flex items-center justify-center mb-6">
                             <Users className="w-8 h-8 text-blue-600" />
                         </div>
                         <h3 className="text-xl font-semibold mb-2">
                             No Podcast Generated Yet
                         </h3>
-                        <p className="text-slate-500 mb-8 max-w-sm">
+                        <p className="text-muted-foreground mb-8 max-w-sm">
                             Generate a two-person conversational deep dive to
                             learn about this topic naturally.
                         </p>
@@ -163,7 +163,7 @@ export default function PodcastView({
                             size="lg"
                             onClick={() => generatePodcast('duo')}
                             disabled={generating}
-                            className="bg-blue-600 hover:bg-blue-700 shadow-lg shadow-blue-200"
+                            className="bg-blue-600 hover:bg-blue-700 dark:bg-blue-500/80 dark:hover:bg-blue-500 shadow-lg shadow-blue-200 dark:shadow-none border border-blue-600/20 dark:border-blue-300/20"
                         >
                             {generating ? (
                                 <>
@@ -182,7 +182,7 @@ export default function PodcastView({
             ) : (
                 <div className="space-y-6">
                     {/* Audio Player Card */}
-                    <Card className="bg-slate-900 text-white overflow-hidden shadow-2xl border-none">
+                    <Card className="bg-slate-900 text-white overflow-hidden border-none">
                         <CardContent className="p-8">
                             <div className="flex flex-col items-center">
                                 <span className="text-blue-400 text-xs font-bold uppercase tracking-widest mb-2">
@@ -224,7 +224,7 @@ export default function PodcastView({
                                         size="icon"
                                         onClick={togglePlay}
                                         disabled={!podcast.audio_path}
-                                        className="w-16 h-16 rounded-full bg-white text-slate-900 hover:bg-slate-200 shadow-xl disabled:opacity-50 disabled:bg-slate-700"
+                                        className="w-16 h-16 rounded-full bg-white text-slate-900 hover:bg-slate-200 shadow-none disabled:opacity-50 disabled:bg-slate-700"
                                     >
                                         {!podcast.audio_path ? (
                                             <Loader2 className="w-8 h-8 animate-spin" />

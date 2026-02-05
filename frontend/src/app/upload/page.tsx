@@ -69,7 +69,7 @@ export default function UploadPage() {
     })
 
     return (
-        <div className="flex flex-col items-center justify-center min-h-screen bg-slate-50 p-4">
+        <div className="flex flex-col items-center justify-center min-h-screen bg-background p-4">
             <div className="w-full max-w-xl text-center space-y-8">
                 <div className="space-y-2">
                     <h1 className="text-4xl font-extrabold tracking-tight lg:text-5xl">
@@ -83,29 +83,29 @@ export default function UploadPage() {
                 <div
                     {...getRootProps()}
                     className={cn(
-                        'border-2 border-dashed rounded-xl p-12 transition-all cursor-pointer bg-white shadow-sm hover:shadow-md',
+                        'border-2 border-dashed rounded-xl p-12 transition-all cursor-pointer bg-card shadow-sm hover:shadow-md',
                         isDragActive
-                            ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
-                            : 'border-slate-200 hover:border-blue-400',
+                            ? 'border-blue-500 bg-blue-500/5 ring-2 ring-blue-200/50'
+                            : 'border-border hover:border-blue-400',
                         uploading && 'opacity-50 pointer-events-none'
                     )}
                 >
                     <input {...getInputProps()} />
                     <div className="flex flex-col items-center space-y-4">
-                        <div className="p-4 bg-slate-100 rounded-full">
+                        <div className="p-4 bg-muted rounded-full">
                             {uploading ? (
                                 <Loader2 className="w-8 h-8 text-blue-600 animate-spin" />
                             ) : (
-                                <Upload className="w-8 h-8 text-slate-600" />
+                                <Upload className="w-8 h-8 text-muted-foreground" />
                             )}
                         </div>
                         <div className="space-y-1">
-                            <p className="font-medium text-lg text-slate-900">
+                            <p className="font-medium text-lg text-foreground">
                                 {uploading
                                     ? `Processing Document... ${progress}%`
                                     : 'Click to upload or drag & drop'}
                             </p>
-                            <p className="text-sm text-slate-500">
+                            <p className="text-sm text-muted-foreground">
                                 PDF up to 10MB
                             </p>
                         </div>
@@ -113,7 +113,7 @@ export default function UploadPage() {
                 </div>
 
                 {error && (
-                    <div className="flex items-center p-4 text-red-800 bg-red-50 rounded-lg">
+                    <div className="flex items-center p-4 text-red-800 dark:text-red-200 bg-red-50 dark:bg-red-950/40 rounded-lg border border-red-100 dark:border-red-900/40">
                         <AlertCircle className="w-5 h-5 mr-2" />
                         <span>{error}</span>
                     </div>

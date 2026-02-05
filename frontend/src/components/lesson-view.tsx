@@ -100,7 +100,7 @@ export default function LessonView({
         return (
             <div className="flex flex-col items-center justify-center h-full p-8 text-center space-y-4">
                 <h3 className="text-xl font-semibold">AI Lesson Generator</h3>
-                <p className="text-slate-500">
+                <p className="text-muted-foreground">
                     Generate a comprehensive lesson plan from this document.
                 </p>
                 <Button onClick={generateLesson}>Generate Lesson</Button>
@@ -150,15 +150,15 @@ export default function LessonView({
                         <CardTitle>{section.title}</CardTitle>
                     </CardHeader>
                     <CardContent className="space-y-4">
-                        <div className="prose max-w-none text-slate-700">
+                        <div className="prose max-w-none text-foreground/90 dark:prose-invert">
                             {section.content}
                         </div>
                         {section.key_points.length > 0 && (
-                            <div className="bg-blue-50 p-4 rounded-lg">
-                                <h4 className="font-semibold text-blue-900 mb-2">
+                            <div className="bg-blue-50 dark:bg-blue-950/30 border border-blue-100 dark:border-blue-900/40 p-4 rounded-lg">
+                                <h4 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">
                                     Key Points
                                 </h4>
-                                <ul className="list-disc pl-5 space-y-1 text-blue-800">
+                                <ul className="list-disc pl-5 space-y-1 text-blue-800 dark:text-blue-200/90">
                                     {section.key_points.map((kp, k) => (
                                         <li key={k}>{kp}</li>
                                     ))}
