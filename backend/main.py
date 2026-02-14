@@ -27,7 +27,12 @@ from backend.services.generator import (
     generate_mind_map,
 )
 from backend.services.narration import generate_speech
+from backend.services.narration import get_kokoro
 from backend.services.podcast import generate_podcast_script, synthesize_podcast_audio
+
+#
+# Song generation/voice-conversion features were removed.
+#
 from backend.schemas import (
     LessonPlan,
     FlashcardSet,
@@ -39,15 +44,18 @@ from backend.schemas import (
     WorkspaceDetailOut,
     AppSettings,
     AppSettingsUpdate,
+    GenerateRequest,
 )
 from backend.services.settings import get_app_settings, update_app_settings
 from pydantic import BaseModel
 import os
+import uuid
+import json
 import logging
+import asyncio
 
 logger = logging.getLogger(__name__)
 
-# Create tables on startup (dev only)
 Base.metadata.create_all(bind=engine)
 
 
@@ -159,6 +167,9 @@ def save_settings(request: AppSettingsUpdate, db: Session = Depends(get_db)):
         embedding_provider=request.embedding_provider,
         embedding_model=request.embedding_model,
         ollama_base_url=request.ollama_base_url,
+        enable_vision_processing=request.enable_vision_processing,
+        vision_provider=request.vision_provider,
+        ollama_vision_model=request.ollama_vision_model,
     )
 
 
@@ -269,6 +280,89 @@ def validate_workspace_content(workspace_id: int, db: Session):
 # ======================================================
 # UPLOAD
 # ======================================================
+
+
+@app.post("/generate/lesson/speech", response_model=LessonPlan)
+def api_generate_lesson_speech(
+    request: GenerateRequest,
+    voice: str = "af_bella",
+    db: Session = Depends(get_db),
+):
+    stmt = select(GeneratedLesson).filter(
+        GeneratedLesson.workspace_id == request.workspace_id,
+        GeneratedLesson.topic == request.topic,
+    )
+    lesson = db.scalars(stmt).first()
+
+    # Debug: show all lessons for this workspace
+    all_lessons = db.scalars(
+        select(GeneratedLesson).filter(
+            GeneratedLesson.workspace_id == request.workspace_id
+        )
+    ).all()
+    logger.info(
+        f"All lessons for workspace {request.workspace_id}: {[(les.id, les.topic) for les in all_lessons]}"
+    )
+
+    if not lesson:
+        logger.error(
+            f"Lesson not found for workspace_id={request.workspace_id}, topic='{request.topic}'"
+        )
+        raise HTTPException(
+            status_code=404,
+            detail=f"Lesson not found for workspace {request.workspace_id} and topic '{request.topic}'. Please generate a lesson first.",
+        )
+
+    # If audio already exists, return current lesson plan with audio_path
+    if lesson.audio_path:
+        # Check if file actually exists
+        full_path = os.path.join("storage", "audio", lesson.audio_path)
+        if os.path.exists(full_path):
+            try:
+                plan = LessonPlan(**lesson.content)
+                plan.audio_path = lesson.audio_path
+                return plan
+            except Exception:
+                pass  # validation failed, regenerate
+
+    # Construct text
+    sections = lesson.content.get("sections", [])
+    text_parts = []
+    for s in sections:
+        title = s.get("title", "")
+        content = s.get("content", "")
+        text_parts.append(f"{title}. {content}")
+
+    summary_text = " ".join(text_parts)
+
+    try:
+        audio_stream = generate_speech(summary_text, voice=voice)
+
+        # Save to file
+        filename = f"lesson_{uuid.uuid4()}.wav"
+        rel_dir = "lessons"
+        full_dir = os.path.join("storage", "audio", rel_dir)
+        os.makedirs(full_dir, exist_ok=True)
+
+        file_path = os.path.join(full_dir, filename)
+
+        with open(file_path, "wb") as f:
+            f.write(audio_stream.getbuffer())
+
+        # Update DB
+        # Store relative path like "lessons/abc.wav"
+        rel_path = os.path.join(rel_dir, filename).replace("\\", "/")
+        lesson.audio_path = rel_path
+        db.commit()
+
+        # Update return object
+        plan = LessonPlan(**lesson.content)
+        plan.audio_path = rel_path
+        return plan
+
+    except Exception as e:
+        logger.exception("Lesson speech generation failed")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/workspaces/{id}/upload")
@@ -467,9 +561,32 @@ def get_chat_history(workspace_id: int, db: Session = Depends(get_db)):
 # ======================================================
 
 
-class GenerateRequest(BaseModel):
-    topic: str
-    workspace_id: int
+# GenerateRequest is imported from backend.schemas
+
+
+class GeneratePodcastRequest(GenerateRequest):
+    # Optional voice overrides (Kokoro voice IDs)
+    voice_a: Optional[str] = None  # 1st speaker (duo)
+    voice_b: Optional[str] = None  # 2nd speaker (duo)
+    voice: Optional[str] = None  # narrator (single)
+
+
+@app.get("/tts/voices")
+def list_tts_voices():
+    """
+    List available Kokoro voices (for narration/podcast).
+    Returns voice IDs along with display names and gender.
+    """
+    try:
+        from backend.data.voices import get_all_voices_with_info
+
+        kokoro = get_kokoro()
+        voice_ids = kokoro.get_voices()
+        voices_with_info = get_all_voices_with_info(voice_ids)
+        return {"voices": voice_ids, "voices_info": voices_with_info}
+    except Exception as e:
+        # Keep it non-fatal for the UI.
+        return {"voices": [], "voices_info": [], "error": str(e)}
 
 
 @app.post("/generate/lesson", response_model=LessonPlan)
@@ -510,7 +627,6 @@ def api_generate_lesson(request: GenerateRequest, db: Session = Depends(get_db))
                     f"Underlying error: {msg}"
                 ),
             )
-    except Exception as e:
         logger.exception("Lesson generation failed")
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -522,6 +638,10 @@ def api_generate_lesson(request: GenerateRequest, db: Session = Depends(get_db))
     )
     db.add(db_lesson)
     db.commit()
+    db.refresh(db_lesson)
+    logger.info(
+        f"Saved lesson to DB: workspace_id={request.workspace_id}, topic='{request.topic}', id={db_lesson.id}"
+    )
 
     return plan
 
@@ -648,35 +768,76 @@ def api_generate_mindmap(request: GenerateRequest, db: Session = Depends(get_db)
 
 @app.post("/generate/podcast", response_model=Podcast)
 def api_generate_podcast(
-    request: GenerateRequest,
+    request: GeneratePodcastRequest,
     background_tasks: BackgroundTasks,
     type: str = "duo",
     db: Session = Depends(get_db),
 ):
+    MAX_VERSIONS = 3
+
     try:
         validate_workspace_content(request.workspace_id, db)
     except HTTPException:
         raise
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
-    # check if exists
-    stmt = select(GeneratedPodcast).filter(
-        GeneratedPodcast.workspace_id == request.workspace_id,
-        GeneratedPodcast.topic == request.topic,
-        GeneratedPodcast.podcast_type == type,
+
+    # Normalize voice pair for duplicate detection (sorted to treat A+B same as B+A)
+    def normalize_voice_pair(v1: str, v2: str) -> str:
+        return "::".join(sorted([v1 or "", v2 or ""]))
+
+    requested_pair = normalize_voice_pair(
+        request.voice_a or "af_bella", request.voice_b or "bm_lewis"
     )
-    existing = db.scalars(stmt).first()
-    if existing:
-        return Podcast(
-            topic=existing.topic,
-            script=existing.script,
-            audio_path=existing.audio_path,
+
+    # Get existing podcasts for this workspace/topic
+    stmt = (
+        select(GeneratedPodcast)
+        .filter(
+            GeneratedPodcast.workspace_id == request.workspace_id,
+            GeneratedPodcast.topic == request.topic,
+            GeneratedPodcast.podcast_type == type,
+        )
+        .order_by(GeneratedPodcast.created_at.desc())
+    )
+    existing_podcasts = list(db.scalars(stmt).all())
+
+    # Check for duplicate voice pair
+    for existing in existing_podcasts:
+        existing_pair = normalize_voice_pair(
+            existing.voice_a or "", existing.voice_b or ""
+        )
+        if existing_pair == requested_pair:
+            # Return existing podcast with this voice pair
+            return Podcast(
+                topic=existing.topic,
+                script=existing.script,
+                audio_path=existing.audio_path,
+                id=existing.id,
+                voice_a=existing.voice_a,
+                voice_b=existing.voice_b,
+            )
+
+    # Check max versions limit
+    if len(existing_podcasts) >= MAX_VERSIONS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Maximum {MAX_VERSIONS} podcast versions allowed. Delete an existing version to create a new one.",
         )
 
-    # Generate Script
+    # Determine voices before script generation
+    voice_a_final = request.voice_a or "af_bella"
+    voice_b_final = request.voice_b or "bm_lewis"
+
+    # Generate Script with the selected voices
     try:
         podcast_data = generate_podcast_script(
-            request.topic, request.workspace_id, db, podcast_type=type
+            request.topic,
+            request.workspace_id,
+            db,
+            podcast_type=type,
+            voice_a=voice_a_final,
+            voice_b=voice_b_final,
         )
     except HTTPException:
         raise
@@ -686,6 +847,15 @@ def api_generate_podcast(
         logger.exception("Podcast generation failed")
         raise HTTPException(status_code=500, detail=str(e))
 
+    # Enrich script items with voice metadata
+    if podcast_data and podcast_data.script:
+        from backend.data.voices import get_voice_info
+
+        for item in podcast_data.script:
+            voice_info = get_voice_info(item.voice)
+            item.voice_name = voice_info["name"]
+            item.gender = voice_info["gender"]
+
     # Pre-save without audio path
     db_podcast = GeneratedPodcast(
         workspace_id=request.workspace_id,
@@ -693,6 +863,8 @@ def api_generate_podcast(
         script=[item.model_dump() for item in podcast_data.script],
         audio_path="",  # Will be filled by background task
         podcast_type=type,
+        voice_a=voice_a_final,
+        voice_b=voice_b_final,
     )
     db.add(db_podcast)
     db.commit()
@@ -703,7 +875,9 @@ def api_generate_podcast(
         from backend.database import SessionLocal
 
         with SessionLocal() as bg_db:
-            audio_rel_path = synthesize_podcast_audio(podcast_obj)
+            audio_rel_path = synthesize_podcast_audio(
+                podcast_obj, podcast_id=db_podcast_id
+            )
             bg_stmt = select(GeneratedPodcast).filter(
                 GeneratedPodcast.id == db_podcast_id
             )
@@ -714,7 +888,357 @@ def api_generate_podcast(
 
     background_tasks.add_task(synthesize_and_update, podcast_data, db_podcast.id)
 
+    # Add id and voice info to response
+    podcast_data.id = db_podcast.id
+    podcast_data.voice_a = voice_a_final
+    podcast_data.voice_b = voice_b_final
+
     return podcast_data
+
+
+@app.get("/podcasts/versions")
+def list_podcast_versions(
+    workspace_id: int,
+    topic: str = "Key Concepts",
+    type: str = "duo",
+    db: Session = Depends(get_db),
+):
+    """List all podcast versions for a workspace/topic."""
+    from backend.data.voices import get_voice_info
+
+    stmt = (
+        select(GeneratedPodcast)
+        .filter(
+            GeneratedPodcast.workspace_id == workspace_id,
+            GeneratedPodcast.topic == topic,
+            GeneratedPodcast.podcast_type == type,
+        )
+        .order_by(GeneratedPodcast.created_at.desc())
+    )
+    podcasts = list(db.scalars(stmt).all())
+
+    versions = []
+    for p in podcasts:
+        # Fallback: Inference from script content if voice columns are empty (for legacy records)
+        inferred_voice_a = p.voice_a
+        inferred_voice_b = p.voice_b
+
+        if not inferred_voice_a or not inferred_voice_b:
+            # Collect unique voices from script in order of appearance
+            script_voices = []
+            seen_speakers = set()
+            if p.script:
+                for item in p.script:
+                    speaker = item.get("speaker")
+                    voice = item.get("voice")
+                    if speaker and voice and speaker not in seen_speakers:
+                        script_voices.append(voice)
+                        seen_speakers.add(speaker)
+                    if len(script_voices) >= 2:
+                        break
+
+            if not inferred_voice_a and len(script_voices) > 0:
+                inferred_voice_a = script_voices[0]
+            if not inferred_voice_b and len(script_voices) > 1:
+                inferred_voice_b = script_voices[1]
+
+        voice_a_info = get_voice_info(inferred_voice_a or "")
+        voice_b_info = get_voice_info(inferred_voice_b or "")
+
+        versions.append(
+            {
+                "id": p.id,
+                "voice_a": inferred_voice_a,
+                "voice_b": inferred_voice_b,
+                "voice_a_name": voice_a_info["name"] if inferred_voice_a else "",
+                "voice_b_name": voice_b_info["name"] if inferred_voice_b else "",
+                "audio_path": p.audio_path,
+                "created_at": p.created_at.isoformat() if p.created_at else None,
+            }
+        )
+
+    return {"versions": versions, "max_versions": 3}
+
+
+@app.delete("/podcasts/{podcast_id}")
+def delete_podcast_version(
+    podcast_id: int,
+    db: Session = Depends(get_db),
+):
+    """Delete a specific podcast version."""
+    stmt = select(GeneratedPodcast).filter(GeneratedPodcast.id == podcast_id)
+    podcast = db.scalars(stmt).first()
+    if not podcast:
+        raise HTTPException(status_code=404, detail="Podcast version not found")
+
+    # Delete audio file if exists
+    if podcast.audio_path:
+        import os
+
+        audio_full_path = os.path.join("generated_audio", podcast.audio_path)
+        if os.path.exists(audio_full_path):
+            try:
+                os.remove(audio_full_path)
+            except Exception:
+                pass  # Not critical if file deletion fails
+
+    db.delete(podcast)
+    db.commit()
+    return {"success": True, "deleted_id": podcast_id}
+
+
+@app.get("/podcasts/{podcast_id}")
+def get_podcast_by_id(
+    podcast_id: int,
+    db: Session = Depends(get_db),
+):
+    """Get a specific podcast version by ID."""
+    from backend.data.voices import get_voice_info
+
+    stmt = select(GeneratedPodcast).filter(GeneratedPodcast.id == podcast_id)
+    podcast = db.scalars(stmt).first()
+    if not podcast:
+        raise HTTPException(status_code=404, detail="Podcast version not found")
+
+    # Enrich script with voice info
+    enriched_script = []
+    for item in podcast.script:
+        voice_info = get_voice_info(item.get("voice", ""))
+        enriched_item = {
+            **item,
+            "voice_name": item.get("voice_name") or voice_info["name"],
+            "gender": item.get("gender") or voice_info["gender"],
+        }
+        enriched_script.append(enriched_item)
+
+    from backend.schemas import PodcastDialogueItem
+
+    script_items = [PodcastDialogueItem(**item) for item in enriched_script]
+
+    return Podcast(
+        id=podcast.id,
+        topic=podcast.topic,
+        script=script_items,
+        audio_path=podcast.audio_path,
+        voice_a=podcast.voice_a,
+        voice_b=podcast.voice_b,
+        created_at=podcast.created_at,
+    )
+
+
+@app.post("/generate/podcast/resynthesize")
+def api_resynthesize_podcast_audio(
+    request: GeneratePodcastRequest,
+    background_tasks: BackgroundTasks,
+    type: str = "duo",
+    db: Session = Depends(get_db),
+):
+    """
+    Resynthesize podcast audio with new voices.
+    If voices are different from the existing podcast, creates a new version.
+    If voices are the same, just re-synthesizes the existing one.
+    """
+    stmt = select(GeneratedPodcast).filter(
+        GeneratedPodcast.workspace_id == request.workspace_id,
+        GeneratedPodcast.topic == request.topic,
+        GeneratedPodcast.podcast_type == type,
+    )
+    existing = db.scalars(stmt).first()
+    if not existing:
+        raise HTTPException(status_code=404, detail="Podcast not found to resynthesize")
+
+    # Check if voices are different
+    voice_a_new = request.voice_a or "af_bella"
+    voice_b_new = request.voice_b or "bm_lewis"
+    voices_changed = existing.voice_a != voice_a_new or existing.voice_b != voice_b_new
+
+    if voices_changed:
+        # Create a NEW version with different voices
+        # Check version limit
+        all_podcasts = db.scalars(
+            select(GeneratedPodcast).filter(
+                GeneratedPodcast.workspace_id == request.workspace_id,
+                GeneratedPodcast.topic == request.topic,
+                GeneratedPodcast.podcast_type == type,
+            )
+        ).all()
+
+        MAX_VERSIONS = 3
+        if len(all_podcasts) >= MAX_VERSIONS:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Maximum {MAX_VERSIONS} podcast versions allowed. Delete an existing version to create a new one.",
+            )
+
+        # Generate new script with new voice names
+        from backend.services.podcast import generate_podcast_script
+
+        try:
+            podcast_data = generate_podcast_script(
+                request.topic,
+                request.workspace_id,
+                db,
+                podcast_type=type,
+                voice_a=voice_a_new,
+                voice_b=voice_b_new,
+            )
+        except Exception as e:
+            logger.exception("Podcast script generation failed during resynthesize")
+            raise HTTPException(status_code=500, detail=str(e))
+
+        # Enrich with voice metadata
+        from backend.data.voices import get_voice_info
+
+        for item in podcast_data.script:
+            voice_info = get_voice_info(item.voice)
+            item.voice_name = voice_info["name"]
+            item.gender = voice_info["gender"]
+
+        # Create new podcast version
+        new_podcast = GeneratedPodcast(
+            workspace_id=request.workspace_id,
+            topic=request.topic,
+            podcast_type=type,
+            script=[item.model_dump() for item in podcast_data.script],
+            audio_path="",
+            voice_a=voice_a_new,
+            voice_b=voice_b_new,
+        )
+        db.add(new_podcast)
+        db.commit()
+        db.refresh(new_podcast)
+
+        # Synthesize audio in background
+        def synthesize_and_update(db_podcast_id: int, podcast_data: Podcast):
+            from backend.database import SessionLocal
+
+            with SessionLocal() as bg_db:
+                try:
+                    audio_rel_path = synthesize_podcast_audio(
+                        podcast_data, podcast_id=db_podcast_id
+                    )
+                except Exception:
+                    logger.exception("Podcast audio synthesis failed")
+                    return
+
+                row = bg_db.scalar(
+                    select(GeneratedPodcast).filter(
+                        GeneratedPodcast.id == db_podcast_id
+                    )
+                )
+                if row:
+                    row.audio_path = audio_rel_path  # type: ignore[assignment]
+                    bg_db.commit()
+
+        background_tasks.add_task(synthesize_and_update, new_podcast.id, podcast_data)
+        return {
+            "audio_path": "",
+            "message": "New version created with different voices",
+        }
+
+    else:
+        # Same voices - just re-synthesize the existing podcast
+        # Update voices in the script
+        if existing.script:
+            if type == "duo":
+                speakers: list[str] = []
+                for item in existing.script:
+                    sp = item.get("speaker")
+                    if sp and sp not in speakers:
+                        speakers.append(sp)
+                if len(speakers) >= 1 and request.voice_a:
+                    for item in existing.script:
+                        if item.get("speaker") == speakers[0]:
+                            item["voice"] = request.voice_a
+                if len(speakers) >= 2 and request.voice_b:
+                    for item in existing.script:
+                        if item.get("speaker") == speakers[1]:
+                            item["voice"] = request.voice_b
+            else:
+                if request.voice:
+                    for item in existing.script:
+                        item["voice"] = request.voice
+
+        podcast_obj = Podcast(
+            topic=existing.topic,
+            script=existing.script,
+            audio_path="",
+        )
+
+        # Clear audio_path so UI shows "synthesizing"
+        existing.audio_path = ""  # type: ignore[assignment]
+        db.commit()
+
+        def synthesize_and_update(db_podcast_id: int, podcast_data: Podcast):
+            from backend.database import SessionLocal
+
+            with SessionLocal() as bg_db:
+                try:
+                    audio_rel_path = synthesize_podcast_audio(
+                        podcast_data, podcast_id=db_podcast_id
+                    )
+                except Exception:
+                    logger.exception("Podcast audio re-synthesis failed")
+                    return
+
+                row = bg_db.scalar(
+                    select(GeneratedPodcast).filter(
+                        GeneratedPodcast.id == db_podcast_id
+                    )
+                )
+                if row:
+                    row.audio_path = audio_rel_path  # type: ignore[assignment]
+                    bg_db.commit()
+
+        background_tasks.add_task(synthesize_and_update, existing.id, podcast_obj)
+        return {"audio_path": "", "message": "Re-synthesizing with same voices"}
+
+
+@app.get("/podcast/synthesis/progress/{podcast_id}")
+async def podcast_synthesis_progress(podcast_id: int):
+    """
+    Server-Sent Events endpoint for real-time podcast synthesis progress.
+    """
+    from backend.services.podcast import synthesis_progress_cache
+
+    async def event_generator():
+        try:
+            # Keep streaming until synthesis is complete or failed
+            while True:
+                # Get progress from cache
+                progress_data = synthesis_progress_cache.get(podcast_id)
+
+                if progress_data:
+                    # Send progress event
+                    yield f"data: {json.dumps(progress_data)}\n\n"
+
+                    # Stop streaming if complete or failed
+                    if progress_data["status"] in ["complete", "failed"]:
+                        # Clean up cache after a delay
+                        await asyncio.sleep(2)
+                        synthesis_progress_cache.pop(podcast_id, None)
+                        break
+                else:
+                    # No progress data yet, send waiting status
+                    yield f"data: {json.dumps({'progress': 0, 'status': 'waiting', 'message': 'Waiting for synthesis to start...'})}\n\n"
+
+                # Wait before next update
+                await asyncio.sleep(0.5)
+
+        except asyncio.CancelledError:
+            # Client disconnected
+            logger.info(f"SSE connection closed for podcast {podcast_id}")
+            raise
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",  # Disable nginx buffering
+        },
+    )
 
 
 @app.get("/generate/narration")
@@ -759,19 +1283,37 @@ def get_existing_content(workspace_id: int, topic: str, db: Session = Depends(ge
             GeneratedPodcast.topic == topic,
         )
     )
+    # Enrich podcast script with voice metadata if exists
+    podcast_response = None
+    if podcast:
+        from backend.data.voices import get_voice_info
+
+        enriched_script = []
+        for item in podcast.script:
+            voice_info = get_voice_info(item.get("voice", ""))
+            enriched_item = {
+                **item,
+                "voice_name": item.get("voice_name") or voice_info["name"],
+                "gender": item.get("gender") or voice_info["gender"],
+            }
+            enriched_script.append(enriched_item)
+
+        podcast_response = {
+            "topic": podcast.topic,
+            "script": enriched_script,
+            "audio_path": podcast.audio_path,
+        }
+
+    lesson_response = None
+    if lesson:
+        lesson_response = dict(lesson.content)
+        if lesson.audio_path:
+            lesson_response["audio_path"] = lesson.audio_path
 
     return {
-        "lesson": lesson.content if lesson else None,
+        "lesson": lesson_response,
         "flashcards": flashcards.flashcards if flashcards else None,
         "quiz": quiz.quiz_content if quiz else None,
         "mindmap": mindmap.mindmap_content if mindmap else None,
-        "podcast": (
-            {
-                "topic": podcast.topic,
-                "script": podcast.script,
-                "audio_path": podcast.audio_path,
-            }
-            if podcast
-            else None
-        ),
+        "podcast": podcast_response,
     }

@@ -3,6 +3,11 @@ from typing import List, Optional
 from datetime import datetime
 
 
+class GenerateRequest(BaseModel):
+    workspace_id: int
+    topic: str
+
+
 class WorkspaceCreate(BaseModel):
     name: str
 
@@ -73,6 +78,7 @@ class LessonSection(BaseModel):
 class LessonPlan(BaseModel):
     topic: str
     sections: List[LessonSection]
+    audio_path: Optional[str] = None
 
 
 class MindMapNode(BaseModel):
@@ -96,12 +102,18 @@ class PodcastDialogueItem(BaseModel):
     speaker: str
     text: str
     voice: str
+    voice_name: str = ""
+    gender: str = ""
 
 
 class Podcast(BaseModel):
     topic: str
     script: List[PodcastDialogueItem]
     audio_path: str = ""
+    id: Optional[int] = None
+    voice_a: Optional[str] = None
+    voice_b: Optional[str] = None
+    created_at: Optional[datetime] = None
 
 
 class AppSettings(BaseModel):
@@ -111,6 +123,9 @@ class AppSettings(BaseModel):
     embedding_provider: Optional[str] = "openai"
     embedding_model: Optional[str] = "text-embedding-3-small"
     ollama_base_url: Optional[str] = "http://localhost:11434"
+    enable_vision_processing: Optional[bool] = True
+    vision_provider: Optional[str] = "openai"
+    ollama_vision_model: Optional[str] = "llava"
     updated_at: Optional[datetime] = None
 
     class Config:
@@ -124,3 +139,6 @@ class AppSettingsUpdate(BaseModel):
     embedding_provider: Optional[str] = None
     embedding_model: Optional[str] = None
     ollama_base_url: Optional[str] = None
+    enable_vision_processing: Optional[bool] = None
+    vision_provider: Optional[str] = None
+    ollama_vision_model: Optional[str] = None

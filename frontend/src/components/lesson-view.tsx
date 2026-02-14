@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
 import { Loader2, Volume2 } from 'lucide-react'
 import api from '@/lib/api'
+import { AudioPlayer } from './audio-player'
 
 interface LessonSection {
     title: string
@@ -15,6 +16,7 @@ interface LessonSection {
 interface LessonPlan {
     topic: string
     sections: LessonSection[]
+    audio_path?: string
 }
 
 export default function LessonView({
@@ -51,24 +53,17 @@ export default function LessonView({
 
         setNarrating(true)
         try {
-            // Create a summary for the narration
-            const summaryText = lesson.sections
-                .map((s) => `${s.title}. ${s.content}`)
-                .join(' ')
-            const url = `${api.defaults.baseURL}/generate/narration?text=${encodeURIComponent(summaryText.substring(0, 1000))}` // Limiting for now
-
-            const audio = new Audio(url)
-            audio.onended = () => setNarrating(false)
-            audio.onerror = () => {
-                console.error('Audio playback error')
-                setNarrating(false)
-            }
-            await audio.play()
+            const res = await api.post('/generate/lesson/speech', {
+                topic: topic, // Use the topic from state, not lesson.topic
+                workspace_id: workspaceId
+            })
+            setLesson({ ...lesson, ...res.data })
         } catch (e) {
             console.error('Narration failed:', e)
+        } finally {
             setNarrating(false)
         }
-    }, [lesson, narrating])
+    }, [lesson, narrating, workspaceId, topic])
 
     // Auto-load if exists
     useEffect(() => {
@@ -118,30 +113,43 @@ export default function LessonView({
 
     return (
         <div className="space-y-6 pt-4 px-4 pb-20">
-            <div className="flex items-center justify-between">
-                <h2 className="text-2xl font-bold">{lesson?.topic}</h2>
-                <div className="flex gap-2">
-                    <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={narrateLesson}
-                        disabled={narrating}
-                    >
-                        {narrating ? (
-                            <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                        ) : (
-                            <Volume2 className="w-4 h-4 mr-2" />
+            <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                    <h2 className="text-2xl font-bold">{lesson?.topic}</h2>
+                    <div className="flex gap-2 items-center">
+                        {!lesson?.audio_path && (
+                            <Button
+                                variant="secondary"
+                                size="sm"
+                                onClick={narrateLesson}
+                                disabled={narrating}
+                            >
+                                {narrating ? (
+                                    <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                                ) : (
+                                    <Volume2 className="w-4 h-4 mr-2" />
+                                )}
+                                Play Summary
+                            </Button>
                         )}
-                        Play Summary
-                    </Button>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={generateLesson}
-                    >
-                        Regenerate
-                    </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={generateLesson}
+                        >
+                            Regenerate
+                        </Button>
+                    </div>
                 </div>
+
+                {lesson?.audio_path && (
+                    <div className="w-full">
+                        <AudioPlayer
+                            src={`${api.defaults.baseURL}/audio/${lesson.audio_path}`}
+                            title="Lesson Summary"
+                        />
+                    </div>
+                )}
             </div>
 
             {lesson?.sections.map((section, idx) => (

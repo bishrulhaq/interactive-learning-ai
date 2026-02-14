@@ -105,49 +105,92 @@ def _process_pptx(path: Path) -> List[dict]:
 def _process_image(path: Path, db: Session, workspace_id: int) -> List[dict]:
     """
     Uses Vision LLM to describe the image.
+    Supports both OpenAI Vision and Ollama Vision (llava/bakllava).
     """
     import base64
+    import requests
     from backend.services.settings import get_app_settings
 
     settings_db = get_app_settings(db)
+
+    # Check if vision processing is enabled
+    if not settings_db.enable_vision_processing:
+        raise ValueError(
+            "Image processing is disabled in settings. "
+            "Enable vision processing in Settings or upload a PDF/Word/PPT instead."
+        )
+
     prompt_text = "Describe this image in extreme detail for an educational RAG system. Extract all text, explain diagrams, and summarize key concepts shown."
 
     with open(path, "rb") as image_file:
         encoded_string = base64.b64encode(image_file.read()).decode("utf-8")
 
-    # Images currently require OpenAI Vision. We intentionally allow using Ollama for chat/LLM,
-    # but still use OpenAI here if a key is configured.
-    if not settings_db.openai_api_key:
-        raise ValueError(
-            "Image processing requires OpenAI Vision, but no OpenAI API key is configured. "
-            "Add your key in Settings or upload a PDF/Word/PPT instead."
-        )
+    vision_provider = settings_db.vision_provider or "openai"
 
-    workspace = db.get(Workspace, workspace_id)
-    vision_model = settings_db.openai_model or "gpt-4o"
-    if workspace and workspace.llm_provider == "openai" and workspace.llm_model:
-        vision_model = workspace.llm_model
+    # Ollama Vision Support
+    if vision_provider == "ollama":
+        try:
+            ollama_url = settings_db.ollama_base_url or "http://localhost:11434"
+            vision_model = settings_db.ollama_vision_model or "llava"
 
-    client = openai.OpenAI(api_key=settings_db.openai_api_key)
-    response = client.chat.completions.create(
-        model=vision_model,
-        messages=[
-            {
-                "role": "user",
-                "content": [
-                    {"type": "text", "text": prompt_text},
-                    {
-                        "type": "image_url",
-                        "image_url": {
-                            "url": f"data:image/jpeg;base64,{encoded_string}"
+            response = requests.post(
+                f"{ollama_url}/api/generate",
+                json={
+                    "model": vision_model,
+                    "prompt": prompt_text,
+                    "images": [encoded_string],
+                    "stream": False,
+                },
+                timeout=120,  # Vision models can be slow
+            )
+            response.raise_for_status()
+            description = response.json().get("response", "")
+
+            if not description:
+                raise ValueError(
+                    f"Ollama vision model '{vision_model}' returned empty response"
+                )
+
+        except Exception as e:
+            logger.error(f"Ollama vision processing failed: {e}")
+            raise ValueError(
+                f"Ollama vision processing failed: {str(e)}. "
+                f"Make sure '{vision_model}' model is installed (run: ollama pull {vision_model})"
+            )
+
+    # OpenAI Vision Support
+    else:
+        if not settings_db.openai_api_key:
+            raise ValueError(
+                "Image processing requires OpenAI Vision, but no OpenAI API key is configured. "
+                "Add your key in Settings, switch to Ollama vision, or upload a PDF/Word/PPT instead."
+            )
+
+        workspace = db.get(Workspace, workspace_id)
+        vision_model = settings_db.openai_model or "gpt-4o"
+        if workspace and workspace.llm_provider == "openai" and workspace.llm_model:
+            vision_model = workspace.llm_model
+
+        client = openai.OpenAI(api_key=settings_db.openai_api_key)
+        vision_response = client.chat.completions.create(
+            model=vision_model,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {"type": "text", "text": prompt_text},
+                        {
+                            "type": "image_url",
+                            "image_url": {
+                                "url": f"data:image/jpeg;base64,{encoded_string}"
+                            },
                         },
-                    },
-                ],
-            }
-        ],
-        max_tokens=1500,
-    )
-    description = response.choices[0].message.content
+                    ],
+                }
+            ],
+            max_tokens=1500,
+        )
+        description = vision_response.choices[0].message.content
 
     return [
         {

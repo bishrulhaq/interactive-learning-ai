@@ -618,7 +618,7 @@ export default function StudyPage() {
                     className="flex flex-col h-full"
                 >
                     <div className="border-b border-border px-4 pt-3 bg-card">
-                        <TabsList className="grid w-full grid-cols-6 mb-2">
+                        <TabsList className="grid w-full grid-cols-7 mb-2">
                             {/* ... triggers ... */}
                             <TabsTrigger
                                 value="chat"
@@ -661,68 +661,56 @@ export default function StudyPage() {
 
                     <TabsContent
                         value="chat"
-                        forceMount
-                        className={cn(
-                            'flex-1 mt-0 overflow-hidden flex flex-col',
-                            activeTab !== 'chat' && 'hidden'
-                        )}
+                        className="flex-1 mt-0 overflow-hidden flex flex-col"
                     >
-                        <ChatInterface workspaceId={workspaceId} />
+                        {activeTab === 'chat' ? (
+                            <ChatInterface workspaceId={workspaceId} />
+                        ) : null}
                     </TabsContent>
 
                     <TabsContent
                         value="lesson"
-                        forceMount
-                        className={cn(
-                            'flex-1 mt-0 overflow-y-auto bg-muted/30',
-                            activeTab !== 'lesson' && 'hidden'
-                        )}
+                        className="flex-1 mt-0 overflow-y-auto bg-muted/30"
                     >
-                        <LessonView workspaceId={workspaceId} />
+                        {activeTab === 'lesson' ? (
+                            <LessonView workspaceId={workspaceId} />
+                        ) : null}
                     </TabsContent>
 
                     <TabsContent
                         value="flashcards"
-                        forceMount
-                        className={cn(
-                            'flex-1 mt-0 overflow-y-auto bg-muted/30',
-                            activeTab !== 'flashcards' && 'hidden'
-                        )}
+                        className="flex-1 mt-0 overflow-y-auto bg-muted/30"
                     >
-                        <FlashcardView workspaceId={workspaceId} />
+                        {activeTab === 'flashcards' ? (
+                            <FlashcardView workspaceId={workspaceId} />
+                        ) : null}
                     </TabsContent>
 
                     <TabsContent
                         value="quiz"
-                        forceMount
-                        className={cn(
-                            'flex-1 mt-0 overflow-y-auto bg-muted/30',
-                            activeTab !== 'quiz' && 'hidden'
-                        )}
+                        className="flex-1 mt-0 overflow-y-auto bg-muted/30"
                     >
-                        <QuizView workspaceId={workspaceId} />
+                        {activeTab === 'quiz' ? (
+                            <QuizView workspaceId={workspaceId} />
+                        ) : null}
                     </TabsContent>
 
                     <TabsContent
                         value="mindmap"
-                        forceMount
-                        className={cn(
-                            'flex-1 mt-0 overflow-y-auto bg-muted/30',
-                            activeTab !== 'mindmap' && 'hidden'
-                        )}
+                        className="flex-1 mt-0 overflow-y-auto bg-muted/30"
                     >
-                        <MindMapView workspaceId={workspaceId} />
+                        {activeTab === 'mindmap' ? (
+                            <MindMapView workspaceId={workspaceId} />
+                        ) : null}
                     </TabsContent>
 
                     <TabsContent
                         value="podcast"
-                        forceMount
-                        className={cn(
-                            'flex-1 mt-0 overflow-y-auto bg-muted/30',
-                            activeTab !== 'podcast' && 'hidden'
-                        )}
+                        className="flex-1 mt-0 overflow-y-auto bg-muted/30"
                     >
-                        <PodcastView workspaceId={workspaceId} />
+                        {activeTab === 'podcast' ? (
+                            <PodcastView workspaceId={workspaceId} />
+                        ) : null}
                     </TabsContent>
                 </Tabs>
             </div>

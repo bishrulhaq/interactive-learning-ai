@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import {
     Send,
     Bot,
@@ -18,11 +18,12 @@ import { Input } from '@/components/ui/input'
 import { ScrollArea } from '@/components/ui/scroll-area'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Card } from '@/components/ui/card'
+import { VoiceSelector } from '@/components/ui/voice-selector'
 import api from '@/lib/api'
 import { cn } from '@/lib/utils'
 import ReactMarkdown from 'react-markdown'
-import { useCallback } from 'react'
 import type { AxiosError } from 'axios'
+import type { VoiceInfo } from '@/types/voice'
 
 interface Message {
     role: 'user' | 'assistant'
@@ -88,6 +89,13 @@ export default function ChatInterface({
     const [isMuted, setIsMuted] = useState(false)
     const [voiceTranscript, setVoiceTranscript] = useState('')
     const [voiceResponse, setVoiceResponse] = useState('')
+    const [voices, setVoices] = useState<string[]>([])
+    const [voicesInfo, setVoicesInfo] = useState<VoiceInfo[]>([])
+    const [narrationVoice, setNarrationVoice] = useState('af_bella')
+    const [showAllVoices, setShowAllVoices] = useState(false)
+    const previewAudioRef = useRef<HTMLAudioElement | null>(null)
+    const previewCacheRef = useRef<Map<string, string>>(new Map()) // voice -> Blob URL
+    const [previewPlaying, setPreviewPlaying] = useState(false)
 
     const scrollRef = useRef<HTMLDivElement>(null)
     const audioRef = useRef<HTMLAudioElement | null>(null)
@@ -95,7 +103,7 @@ export default function ChatInterface({
     const queueRef = useRef<string[]>([])
     const isProcessingQueueRef = useRef(false)
     const silenceTimerRef = useRef<NodeJS.Timeout | null>(null)
-    const audioBufferRef = useRef<Map<string, string>>(new Map()) // Text -> Blob URL
+    const audioBufferRef = useRef<Map<string, string>>(new Map()) // key -> Blob URL
 
     const fetchMessages = useCallback(async () => {
         try {
@@ -118,6 +126,40 @@ export default function ChatInterface({
         fetchMessages()
     }, [fetchMessages])
 
+    useEffect(() => {
+        let cancelled = false
+        const loadVoices = async () => {
+            try {
+                const res = await api.get<{
+                    voices: string[]
+                    voices_info?: VoiceInfo[]
+                }>('/tts/voices')
+                const list = Array.isArray(res.data?.voices)
+                    ? res.data.voices
+                    : []
+                const info = Array.isArray(res.data?.voices_info)
+                    ? res.data.voices_info
+                    : []
+                if (cancelled) return
+                setVoices(list)
+                setVoicesInfo(info)
+                if (list.length && !list.includes(narrationVoice)) {
+                    setNarrationVoice(list[0])
+                }
+            } catch {
+                if (!cancelled) {
+                    setVoices([])
+                    setVoicesInfo([])
+                }
+            }
+        }
+        loadVoices()
+        return () => {
+            cancelled = true
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
+
     // Auto-scroll to bottom whenever messages or loading state changes
     useEffect(() => {
         if (scrollRef.current) {
@@ -127,27 +169,73 @@ export default function ChatInterface({
 
     // Cleanup timers on unmount
     useEffect(() => {
+        const cache = previewCacheRef.current
         return () => {
             if (silenceTimerRef.current) clearTimeout(silenceTimerRef.current)
+            cache.forEach((url) => URL.revokeObjectURL(url))
+            cache.clear()
         }
     }, [])
 
-    const fetchSentenceAudio = async (text: string) => {
-        if (audioBufferRef.current.has(text))
-            return audioBufferRef.current.get(text)
+    const playVoicePreview = async (voice: string) => {
         try {
-            const res = await fetch(
-                `http://localhost:8000/generate/narration?text=${encodeURIComponent(text)}&voice=af_bella`
-            )
-            const blob = await res.blob()
-            const url = URL.createObjectURL(blob)
-            audioBufferRef.current.set(text, url)
-            return url
-        } catch (err) {
-            console.error('Failed to fetch audio for:', text, err)
-            return null
+            if (previewPlaying) {
+                previewAudioRef.current?.pause()
+                setPreviewPlaying(false)
+                return
+            }
+            let url = previewCacheRef.current.get(voice)
+            if (!url) {
+                const base = String(
+                    api.defaults.baseURL || 'http://localhost:8000'
+                ).replace(/\/$/, '')
+                const sampleText = 'Hello! This is a sample of my voice.'
+                const res = await fetch(
+                    `${base}/generate/narration?text=${encodeURIComponent(
+                        sampleText
+                    )}&voice=${encodeURIComponent(voice)}`
+                )
+                const blob = await res.blob()
+                url = URL.createObjectURL(blob)
+                previewCacheRef.current.set(voice, url)
+            }
+            if (!previewAudioRef.current) previewAudioRef.current = new Audio()
+            previewAudioRef.current.pause()
+            previewAudioRef.current.src = url
+            previewAudioRef.current.onended = () => setPreviewPlaying(false)
+            await previewAudioRef.current.play()
+            setPreviewPlaying(true)
+        } catch (e) {
+            console.error('Failed to play voice preview', e)
+            setPreviewPlaying(false)
         }
     }
+
+    const fetchSentenceAudio = useCallback(
+        async (text: string) => {
+            const key = `${narrationVoice}::${text}`
+            if (audioBufferRef.current.has(key))
+                return audioBufferRef.current.get(key)
+            try {
+                const base = String(
+                    api.defaults.baseURL || 'http://localhost:8000'
+                ).replace(/\/$/, '')
+                const res = await fetch(
+                    `${base}/generate/narration?text=${encodeURIComponent(
+                        text
+                    )}&voice=${encodeURIComponent(narrationVoice)}`
+                )
+                const blob = await res.blob()
+                const url = URL.createObjectURL(blob)
+                audioBufferRef.current.set(key, url)
+                return url
+            } catch (err) {
+                console.error('Failed to fetch audio for:', text, err)
+                return null
+            }
+        },
+        [narrationVoice]
+    )
 
     const playNextInQueue = useCallback(
         async (onFinalComplete?: () => void) => {
@@ -174,7 +262,8 @@ export default function ChatInterface({
                 .forEach((text) => fetchSentenceAudio(text))
 
             try {
-                let url = audioBufferRef.current.get(textToSpeak)
+                const key = `${narrationVoice}::${textToSpeak}`
+                let url = audioBufferRef.current.get(key)
                 if (!url) {
                     url = (await fetchSentenceAudio(textToSpeak)) || undefined
                 }
@@ -198,7 +287,7 @@ export default function ChatInterface({
                 playNextInQueue(onFinalComplete)
             }
         },
-        []
+        [fetchSentenceAudio, narrationVoice]
     )
 
     const speak = useCallback(
@@ -418,36 +507,60 @@ export default function ChatInterface({
 
     return (
         <Card className="flex flex-col h-full border-0 shadow-none rounded-none bg-background">
-            <div className="p-4 border-b border-border bg-card/60 backdrop-blur-md flex items-center justify-between">
-                <h2 className="font-semibold flex items-center gap-2">
-                    <Bot className="w-5 h-5 text-blue-600" />
-                    AI Tutor
-                </h2>
-                <div className="flex items-center gap-2">
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => setAutoPlay(!autoPlay)}
-                        className={cn(
-                            'text-xs gap-2',
-                            autoPlay ? 'text-blue-600' : 'text-muted-foreground'
-                        )}
-                    >
-                        {autoPlay ? (
-                            <Volume2 className="w-4 h-4" />
-                        ) : (
-                            <VolumeX className="w-4 h-4" />
-                        )}
-                    </Button>
-                    <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={toggleVoiceMode}
-                        className="text-muted-foreground hover:text-blue-600"
-                    >
-                        <Headphones className="w-5 h-5" />
-                    </Button>
+            <div className="p-4 border-b border-border bg-card/60 backdrop-blur-md">
+                <div className="flex items-center justify-between mb-3">
+                    <h2 className="font-semibold flex items-center gap-2">
+                        <Bot className="w-5 h-5 text-blue-600" />
+                        AI Tutor
+                    </h2>
+                    <div className="flex items-center gap-2">
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => setAutoPlay(!autoPlay)}
+                            className={cn(
+                                'text-xs gap-2',
+                                autoPlay
+                                    ? 'text-blue-600'
+                                    : 'text-muted-foreground'
+                            )}
+                        >
+                            {autoPlay ? (
+                                <Volume2 className="w-4 h-4" />
+                            ) : (
+                                <VolumeX className="w-4 h-4" />
+                            )}
+                        </Button>
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={toggleVoiceMode}
+                            className="text-muted-foreground hover:text-blue-600"
+                        >
+                            <Headphones className="w-5 h-5" />
+                        </Button>
+                    </div>
                 </div>
+
+                {/* Voice Selector */}
+                <VoiceSelector
+                    voices={voices}
+                    voicesInfo={voicesInfo}
+                    selectedVoice={narrationVoice}
+                    onSelect={(voiceId) => {
+                        setNarrationVoice(voiceId)
+                        // Clear cached audio for previous voice
+                        audioBufferRef.current.forEach((url) =>
+                            URL.revokeObjectURL(url)
+                        )
+                        audioBufferRef.current.clear()
+                    }}
+                    onPlaySample={playVoicePreview}
+                    isPlayingSample={previewPlaying}
+                    playingVoiceId={previewPlaying ? narrationVoice : null}
+                    showAllVoices={showAllVoices}
+                    onToggleShowAll={() => setShowAllVoices((v) => !v)}
+                />
             </div>
 
             <ScrollArea className="flex-1 p-4 min-h-0">

@@ -22,8 +22,12 @@ import {
     Sparkles,
     Download,
     XCircle,
-    InfoIcon
+    InfoIcon,
+    ImageIcon,
+    Eye,
+    RotateCcw
 } from 'lucide-react'
+import { Switch } from '@/components/ui/switch'
 import api from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { Progress } from '@/components/ui/progress'
@@ -86,55 +90,27 @@ export default function SettingsPage() {
         'text-embedding-3-small'
     )
 
+    // Vision Settings State
+    const [enableVision, setEnableVision] = useState(true)
+    const [visionProvider, setVisionProvider] = useState('openai')
+    const [ollamaVisionModel, setOllamaVisionModel] = useState('llava')
+
     const [loading, setLoading] = useState(true)
     const [saving, setSaving] = useState(false)
-    const [isDownloading, setIsDownloading] = useState(false)
-    const [downloadProgress, setDownloadProgress] = useState(0)
-    const [downloadStatus, setDownloadStatus] = useState('')
-    const [abortController, setAbortController] =
-        useState<AbortController | null>(null)
-
-    const [connectionError, setConnectionError] = useState(false)
     const [message, setMessage] = useState<{
         type: 'success' | 'error' | 'warning'
         text: string
     } | null>(null)
+    const [connectionError, setConnectionError] = useState(false)
+    const [isDownloading, setIsDownloading] = useState(false)
+    const [downloadProgress, setDownloadProgress] = useState(0)
+    const [downloadStatus, setDownloadStatus] = useState('')
     const [runtimeInfo, setRuntimeInfo] = useState<{
-        device: string
+        device?: string
         cuda_available?: boolean
-        cuda_device_name?: string | null
+        cuda_device_name?: string
     } | null>(null)
     const router = useRouter()
-
-    useEffect(() => {
-        fetchSettings()
-    }, [])
-
-    useEffect(() => {
-        if (loading) return
-
-        const llmReady = llmProvider === 'openai' ? !!apiKey : !!ollamaUrl
-        const embedReady = embeddingProvider === 'openai' ? !!apiKey : true
-
-        if (!llmReady || !embedReady) {
-            setMessage({
-                type: 'warning',
-                text: 'Some configuration fields are missing for your selected providers.'
-            })
-        } else if (message?.type === 'warning') {
-            setMessage(null)
-        }
-    }, [
-        llmProvider,
-        embeddingProvider,
-        apiKey,
-        ollamaUrl,
-        loading,
-        message?.type
-    ])
-
-    const needsOpenAiKey =
-        llmProvider === 'openai' || embeddingProvider === 'openai'
 
     const fetchSettings = async () => {
         setLoading(true)
@@ -150,12 +126,17 @@ export default function SettingsPage() {
             if (res.data.embedding_model)
                 setEmbeddingModel(res.data.embedding_model)
 
-            // Runtime hints (CPU/GPU) for advanced guidance.
-            try {
-                const rt = await api.get('/settings/runtime')
-                setRuntimeInfo(rt.data)
-            } catch {
-                setRuntimeInfo(null)
+            // Vision Settings
+            if (res.data.enable_vision_processing !== undefined)
+                setEnableVision(res.data.enable_vision_processing)
+            if (res.data.vision_provider)
+                setVisionProvider(res.data.vision_provider)
+            if (res.data.ollama_vision_model)
+                setOllamaVisionModel(res.data.ollama_vision_model)
+
+            // Runtime hints
+            if (res.data.runtime_info) {
+                setRuntimeInfo(res.data.runtime_info)
             }
         } catch {
             setConnectionError(true)
@@ -164,12 +145,52 @@ export default function SettingsPage() {
         }
     }
 
-    const cancelDownload = () => {
-        if (abortController) {
-            abortController.abort()
-            setAbortController(null)
+    const cancelDownload = async () => {
+        try {
+            await api.post('/settings/cancel-download')
             setIsDownloading(false)
-            setMessage({ type: 'warning', text: 'Download cancelled by user.' })
+            setDownloadProgress(0)
+            setDownloadStatus('')
+        } catch (err) {
+            console.error('Failed to cancel download:', err)
+        }
+    }
+
+    const triggerDownload = async () => {
+        setIsDownloading(true)
+        setDownloadProgress(0)
+        setDownloadStatus('Connecting...')
+
+        const eventSource = new EventSource(
+            `${api.defaults.baseURL}/settings/download-progress`
+        )
+
+        eventSource.onmessage = (event) => {
+            const data = JSON.parse(event.data)
+            if (data.status === 'downloading' || data.status === 'pulling') {
+                setDownloadProgress(data.progress || 0)
+                setDownloadStatus(data.message || 'Downloading...')
+            } else if (data.status === 'completed') {
+                setDownloadProgress(100)
+                setDownloadStatus('Completed!')
+                setTimeout(() => {
+                    setIsDownloading(false)
+                    eventSource.close()
+                }, 2000)
+            } else if (data.status === 'error') {
+                setMessage({
+                    type: 'error',
+                    text: data.message || 'Download failed'
+                })
+                setIsDownloading(false)
+                eventSource.close()
+            }
+        }
+
+        eventSource.onerror = (err) => {
+            console.error('EventSource failed:', err)
+            eventSource.close()
+            setIsDownloading(false)
         }
     }
 
@@ -179,14 +200,11 @@ export default function SettingsPage() {
         setMessage(null)
 
         try {
-            // Validation check before saving
-            const llmReady = llmProvider === 'openai' ? !!apiKey : !!ollamaUrl
-            const embedReady = embeddingProvider === 'openai' ? !!apiKey : true // HF is local
-
-            if (!llmReady || !embedReady) {
+            // Validation check
+            if (llmProvider === 'openai' && !apiKey) {
                 setMessage({
                     type: 'error',
-                    text: 'Please fill in all required fields for your selected providers.'
+                    text: 'OpenAI API Key is required'
                 })
                 setSaving(false)
                 return
@@ -199,7 +217,12 @@ export default function SettingsPage() {
                 openai_model: model,
                 ollama_base_url: ollamaUrl,
                 embedding_provider: embeddingProvider,
-                embedding_model: embeddingModel
+                embedding_model: embeddingModel,
+
+                // Vision Settings
+                enable_vision_processing: enableVision,
+                vision_provider: visionProvider,
+                ollama_vision_model: ollamaVisionModel
             })
 
             // 2. If it's a local model, trigger the download/pull
@@ -215,89 +238,31 @@ export default function SettingsPage() {
                 })
             }
         } catch {
-            setMessage({ type: 'error', text: 'Failed to save settings.' })
+            setMessage({
+                type: 'error',
+                text: 'Failed to save settings. Please try again.'
+            })
         } finally {
             setSaving(false)
         }
     }
 
-    const triggerDownload = async () => {
-        setIsDownloading(true)
-        setDownloadProgress(0)
-        setDownloadStatus('Starting download...')
+    useEffect(() => {
+        fetchSettings()
+    }, [])
 
-        const controller = new AbortController()
-        setAbortController(controller)
-
-        const provider = llmProvider === 'ollama' ? 'ollama' : 'huggingface'
-        const name = llmProvider === 'ollama' ? model : embeddingModel
-
-        try {
-            const response = await fetch(
-                `${api.defaults.baseURL}/settings/download-model`,
-                {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        provider,
-                        model_name: name,
-                        ollama_base_url: ollamaUrl
-                    }),
-                    signal: controller.signal
-                }
-            )
-
-            if (!response.body) throw new Error('No response body')
-
-            const reader = response.body.getReader()
-            const decoder = new TextDecoder()
-
-            while (true) {
-                const { value, done } = await reader.read()
-                if (done) break
-
-                const chunk = decoder.decode(value)
-                const lines = chunk.split('\n')
-
-                for (const line of lines) {
-                    if (line.startsWith('data: ')) {
-                        const data = JSON.parse(line.slice(6))
-                        if (data.error) {
-                            setMessage({ type: 'error', text: data.error })
-                            setIsDownloading(false)
-                            return
-                        }
-                        if (data.status) setDownloadStatus(data.status)
-                        if (data.progress !== undefined)
-                            setDownloadProgress(data.progress)
-                        if (data.status === 'success') {
-                            setMessage({
-                                type: 'success',
-                                text: 'Model ready!'
-                            })
-                            setIsDownloading(false)
-                            return
-                        }
-                    }
-                }
-            }
-        } catch (err: unknown) {
-            if (err instanceof Error && err.name === 'AbortError') return
-            const msg = err instanceof Error ? err.message : 'Unknown error'
-            setMessage({ type: 'error', text: 'Download failed: ' + msg })
-        } finally {
-            setIsDownloading(false)
-            setAbortController(null)
-        }
-    }
+    const needsOpenAiKey =
+        llmProvider === 'openai' ||
+        embeddingProvider === 'openai' ||
+        (enableVision && visionProvider === 'openai')
 
     if (loading) {
         return (
-            <div className="min-h-screen bg-background flex items-center justify-center">
-                <div className="text-center space-y-4">
-                    <Loader2 className="w-10 h-10 animate-spin text-blue-600 mx-auto" />
-                    <p className="text-muted-foreground font-medium animate-pulse">
-                        Connecting to backend...
+            <div className="min-h-screen bg-background flex items-center justify-center p-8">
+                <div className="flex flex-col items-center gap-4">
+                    <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+                    <p className="text-muted-foreground animate-pulse">
+                        Loading settings...
                     </p>
                 </div>
             </div>
@@ -306,48 +271,20 @@ export default function SettingsPage() {
 
     if (connectionError) {
         return (
-            <div className="min-h-screen bg-background flex items-center justify-center p-6">
-                <Card className="max-w-md w-full border-none shadow-2xl bg-card overflow-hidden">
-                    <div className="h-2 bg-red-500" />
-                    <CardContent className="p-8 text-center space-y-6">
-                        <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center mx-auto">
-                            <AlertCircle className="w-8 h-8 text-red-500" />
-                        </div>
-                        <div className="space-y-2">
-                            <h2 className="text-2xl font-bold text-foreground">
-                                Connection Failed
-                            </h2>
-                            <p className="text-muted-foreground text-sm">
-                                We couldn&apos;t reach the backend server at{' '}
-                                <code className="bg-muted px-1 py-0.5 rounded text-blue-600 font-bold">
-                                    {api.defaults.baseURL}
-                                </code>
-                                . Please ensure you have run{' '}
-                                <code className="bg-muted px-1 py-0.5 rounded font-mono text-xs">
-                                    .\run-dev.ps1
-                                </code>{' '}
-                                in your terminal.
-                            </p>
-                        </div>
-                        <div className="flex flex-col gap-3">
-                            <Button
-                                onClick={fetchSettings}
-                                className="w-full bg-blue-600 hover:bg-blue-700 dark:bg-blue-500/80 dark:hover:bg-blue-500 text-white h-12 rounded-xl font-bold transition-all border border-blue-600/20 dark:border-blue-300/20 shadow-none"
-                            >
-                                <Save className="w-4 h-4 mr-2" /> Retry
-                                Connection
-                            </Button>
-                            <Button
-                                variant="ghost"
-                                onClick={() => router.push('/')}
-                                className="w-full text-muted-foreground hover:bg-accent/50 h-12 rounded-xl"
-                            >
-                                <ArrowLeft className="w-4 h-4 mr-2" /> Back to
-                                Home
-                            </Button>
-                        </div>
-                    </CardContent>
-                </Card>
+            <div className="min-h-screen bg-background flex items-center justify-center p-8 text-center">
+                <div className="max-w-md space-y-4">
+                    <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto">
+                        <AlertCircle className="w-8 h-8 text-red-600" />
+                    </div>
+                    <h1 className="text-2xl font-bold">Connection Error</h1>
+                    <p className="text-muted-foreground">
+                        We couldn&apos;t reach the server. Please check if your
+                        backend is running.
+                    </p>
+                    <Button onClick={() => fetchSettings()} variant="outline">
+                        <RotateCcw className="w-4 h-4 mr-2" /> Retry
+                    </Button>
+                </div>
             </div>
         )
     }
@@ -375,7 +312,6 @@ export default function SettingsPage() {
                         </div>
                     </div>
                 </div>
-
                 <form onSubmit={handleSave} className="space-y-6">
                     {isDownloading && (
                         <div className="p-6 rounded-2xl bg-card border-2 border-blue-500 shadow-2xl space-y-4 animate-in fade-in zoom-in duration-300">
@@ -968,6 +904,143 @@ export default function SettingsPage() {
                                 </div>
                             </div>
                         </CardContent>
+                    </Card>
+
+                    {/* Vision Configuration Card */}
+                    <Card className="border-none shadow-xl bg-card/80 backdrop-blur-md overflow-hidden">
+                        <CardHeader className="border-b border-border bg-muted/40">
+                            <div className="flex items-center justify-between">
+                                <div>
+                                    <CardTitle className="flex items-center gap-2 text-lg text-blue-600">
+                                        <Eye className="w-5 h-5" />
+                                        Vision Configuration
+                                    </CardTitle>
+                                    <CardDescription>
+                                        Configure how AI sees and analyzes
+                                        images in your documents.
+                                    </CardDescription>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                    <label className="text-sm font-medium text-muted-foreground mr-2">
+                                        Enable Vision
+                                    </label>
+                                    <Switch
+                                        checked={enableVision}
+                                        onCheckedChange={setEnableVision}
+                                    />
+                                </div>
+                            </div>
+                        </CardHeader>
+
+                        {enableVision && (
+                            <CardContent className="p-6 space-y-6 animate-in slide-in-from-top-4 duration-300">
+                                <div className="space-y-4">
+                                    <div className="space-y-2">
+                                        <label className="text-sm font-semibold text-foreground/80 flex items-center gap-2">
+                                            <ImageIcon className="w-4 h-4 text-slate-400" />
+                                            Vision Provider
+                                        </label>
+                                        <div className="grid grid-cols-2 gap-4">
+                                            {[
+                                                {
+                                                    id: 'openai',
+                                                    name: 'OpenAI Vision',
+                                                    desc: 'Best accuracy (GPT-4o)',
+                                                    icon: Sparkles
+                                                },
+                                                {
+                                                    id: 'ollama',
+                                                    name: 'Ollama Vision',
+                                                    desc: 'Local privacy (LLaVA)',
+                                                    icon: Cpu
+                                                }
+                                            ].map((p) => (
+                                                <div
+                                                    key={p.id}
+                                                    onClick={() =>
+                                                        setVisionProvider(p.id)
+                                                    }
+                                                    className={cn(
+                                                        'p-3 rounded-xl border-2 cursor-pointer transition-all flex items-center gap-3',
+                                                        visionProvider === p.id
+                                                            ? 'border-blue-500 bg-blue-50/50 dark:border-blue-400/50 dark:bg-blue-500/10'
+                                                            : 'border-border bg-card hover:border-border hover:bg-accent/20'
+                                                    )}
+                                                >
+                                                    <p.icon
+                                                        className={cn(
+                                                            'w-4 h-4',
+                                                            visionProvider ===
+                                                                p.id
+                                                                ? 'text-blue-600'
+                                                                : 'text-slate-400'
+                                                        )}
+                                                    />
+                                                    <div>
+                                                        <div
+                                                            className={cn(
+                                                                'font-bold text-sm',
+                                                                visionProvider ===
+                                                                    p.id
+                                                                    ? 'text-blue-700 dark:text-blue-200'
+                                                                    : 'text-muted-foreground'
+                                                            )}
+                                                        >
+                                                            {p.name}
+                                                        </div>
+                                                        <div className="text-[10px] text-muted-foreground/70 font-normal">
+                                                            {p.desc}
+                                                        </div>
+                                                    </div>
+                                                    {visionProvider ===
+                                                        p.id && (
+                                                        <CheckCircle2 className="w-4 h-4 ml-auto text-blue-500" />
+                                                    )}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    {visionProvider === 'ollama' && (
+                                        <div className="space-y-2 animate-in fade-in duration-300">
+                                            <label className="text-sm font-semibold text-foreground/80 flex items-center gap-2">
+                                                <Cpu className="w-4 h-4 text-slate-400" />
+                                                Vision Model Name
+                                            </label>
+                                            <div className="flex gap-2">
+                                                <Input
+                                                    placeholder="e.g. llava, bakllava, moondream"
+                                                    value={ollamaVisionModel}
+                                                    onChange={(e) =>
+                                                        setOllamaVisionModel(
+                                                            e.target.value
+                                                        )
+                                                    }
+                                                    className="bg-muted/40 border-border focus:bg-background focus:ring-2 focus:ring-blue-500/20 transition-all font-mono h-12"
+                                                />
+                                            </div>
+                                            <p className="text-[11px] text-muted-foreground">
+                                                Make sure you have pulled this
+                                                model:{' '}
+                                                <code className="bg-muted px-1 rounded">
+                                                    ollama pull{' '}
+                                                    {ollamaVisionModel ||
+                                                        'llava'}
+                                                </code>
+                                            </p>
+                                        </div>
+                                    )}
+
+                                    {visionProvider === 'openai' && !apiKey && (
+                                        <div className="p-3 rounded-lg bg-amber-50 text-amber-800 text-xs border border-amber-200 flex items-center gap-2">
+                                            <AlertCircle className="w-4 h-4" />
+                                            You need to add an OpenAI API Key
+                                            above to use Vision.
+                                        </div>
+                                    )}
+                                </div>
+                            </CardContent>
+                        )}
                     </Card>
 
                     <Button

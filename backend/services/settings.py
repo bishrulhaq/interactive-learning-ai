@@ -21,6 +21,9 @@ def get_app_settings(db: Session) -> AppSettings:
             llm_provider="openai",
             embedding_provider="openai",
             ollama_base_url="http://localhost:11434",
+            enable_vision_processing=True,
+            vision_provider="openai",
+            ollama_vision_model="llava",
         )
         db.add(settings)
         db.commit()
@@ -33,6 +36,12 @@ def get_app_settings(db: Session) -> AppSettings:
         settings.embedding_provider = "openai"
     if settings.ollama_base_url is None:
         settings.ollama_base_url = "http://localhost:11434"
+    if settings.enable_vision_processing is None:
+        settings.enable_vision_processing = True
+    if settings.vision_provider is None:
+        settings.vision_provider = "openai"
+    if settings.ollama_vision_model is None:
+        settings.ollama_vision_model = "llava"
 
     return settings
 
@@ -45,6 +54,9 @@ def update_app_settings(
     embedding_provider: Optional[str] = None,
     embedding_model: Optional[str] = None,
     ollama_base_url: Optional[str] = None,
+    enable_vision_processing: Optional[bool] = None,
+    vision_provider: Optional[str] = None,
+    ollama_vision_model: Optional[str] = None,
 ) -> AppSettings:
     """
     Update the application settings.
@@ -64,6 +76,12 @@ def update_app_settings(
         settings.embedding_model = embedding_model
     if ollama_base_url is not None:
         settings.ollama_base_url = ollama_base_url
+    if enable_vision_processing is not None:
+        settings.enable_vision_processing = enable_vision_processing
+    if vision_provider is not None:
+        settings.vision_provider = vision_provider
+    if ollama_vision_model is not None:
+        settings.ollama_vision_model = ollama_vision_model
 
     db.commit()
     db.refresh(settings)

@@ -6,6 +6,7 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     JSON,
+    Boolean,
 )
 from sqlalchemy.orm import relationship, Mapped, mapped_column
 from pgvector.sqlalchemy import Vector
@@ -147,6 +148,7 @@ class GeneratedLesson(Base):
     workspace_id: Mapped[int] = mapped_column(Integer, ForeignKey("workspaces.id"))
     topic: Mapped[str] = mapped_column(String)
     content: Mapped[Any] = mapped_column(JSON)
+    audio_path: Mapped[Optional[str]] = mapped_column(String, nullable=True)
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime, default=datetime.datetime.utcnow
     )
@@ -195,6 +197,12 @@ class GeneratedPodcast(Base):
     script: Mapped[Any] = mapped_column(JSON)
     audio_path: Mapped[str] = mapped_column(String)
     podcast_type: Mapped[str] = mapped_column(String)  # single, duo
+    voice_a: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True
+    )  # First speaker voice ID
+    voice_b: Mapped[Optional[str]] = mapped_column(
+        String, nullable=True
+    )  # Second speaker voice ID
     created_at: Mapped[datetime.datetime] = mapped_column(
         DateTime, default=datetime.datetime.utcnow
     )
@@ -218,6 +226,12 @@ class AppSettings(Base):
     ollama_base_url: Mapped[str] = mapped_column(
         String, default="http://localhost:11434"
     )
+    # Vision processing settings
+    enable_vision_processing: Mapped[bool] = mapped_column(Boolean, default=True)
+    vision_provider: Mapped[str] = mapped_column(
+        String, default="openai"
+    )  # "openai" or "ollama"
+    ollama_vision_model: Mapped[str] = mapped_column(String, default="llava")
     updated_at: Mapped[datetime.datetime] = mapped_column(
         DateTime, default=datetime.datetime.utcnow, onupdate=datetime.datetime.utcnow
     )
