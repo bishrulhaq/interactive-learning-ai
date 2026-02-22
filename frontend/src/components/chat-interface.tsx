@@ -24,15 +24,7 @@ import { cn } from '@/lib/utils'
 import ReactMarkdown from 'react-markdown'
 import type { AxiosError } from 'axios'
 import type { VoiceInfo } from '@/types/voice'
-
-interface Message {
-    role: 'user' | 'assistant'
-    content: string
-}
-
-type ApiErrorData = {
-    detail?: string
-}
+import type { Message, ApiErrorData } from '@/types'
 
 type SpeechRecognitionAlternativeLike = {
     transcript: string

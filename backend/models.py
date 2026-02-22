@@ -51,6 +51,11 @@ class Workspace(Base):
     podcasts: Mapped[List["GeneratedPodcast"]] = relationship(
         "GeneratedPodcast", back_populates="workspace", cascade="all, delete-orphan"
     )
+    presentations: Mapped[List["GeneratedPresentation"]] = relationship(
+        "GeneratedPresentation",
+        back_populates="workspace",
+        cascade="all, delete-orphan",
+    )
 
 
 class Document(Base):
@@ -185,6 +190,22 @@ class GeneratedMindMap(Base):
 
     workspace: Mapped["Workspace"] = relationship(
         "Workspace", back_populates="mindmaps"
+    )
+
+
+class GeneratedPresentation(Base):
+    __tablename__ = "generated_presentations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    workspace_id: Mapped[int] = mapped_column(Integer, ForeignKey("workspaces.id"))
+    topic: Mapped[str] = mapped_column(String)
+    presentation_content: Mapped[Any] = mapped_column(JSON)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime, default=datetime.datetime.utcnow
+    )
+
+    workspace: Mapped["Workspace"] = relationship(
+        "Workspace", back_populates="presentations"
     )
 
 

@@ -6,18 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Loader2, Volume2 } from 'lucide-react'
 import api from '@/lib/api'
 import { AudioPlayer } from './audio-player'
-
-interface LessonSection {
-    title: string
-    content: string
-    key_points: string[]
-}
-
-interface LessonPlan {
-    topic: string
-    sections: LessonSection[]
-    audio_path?: string
-}
+import type { LessonPlan } from '@/types'
 
 export default function LessonView({
     workspaceId,

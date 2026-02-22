@@ -6,30 +6,7 @@ import { Button } from '@/components/ui/button'
 import { Loader2, RefreshCw, CheckCircle, XCircle } from 'lucide-react'
 import api from '@/lib/api'
 import { cn } from '@/lib/utils'
-
-interface QuizOption {
-    label: string
-    text: string
-}
-
-interface QuizQuestion {
-    question: string
-    options: QuizOption[]
-    correct_answer: string
-    explanation: string
-}
-
-interface Quiz {
-    topic: string
-    questions: QuizQuestion[]
-}
-
-interface RawQuizQuestion {
-    question: string
-    options: string[]
-    correct_answer_index: number
-    explanation: string
-}
+import type { Quiz, RawQuizQuestion } from '@/types'
 
 export default function QuizView({
     workspaceId,

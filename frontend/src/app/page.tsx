@@ -26,12 +26,7 @@ import {
 import api from '@/lib/api'
 import { KeyWall } from '@/components/KeyWall'
 
-interface Workspace {
-    id: number
-    name: string
-    created_at: string
-}
-
+import type { Workspace } from '@/types'
 export default function Home() {
     const [workspaces, setWorkspaces] = useState<Workspace[]>([])
     const [loading, setLoading] = useState(true)

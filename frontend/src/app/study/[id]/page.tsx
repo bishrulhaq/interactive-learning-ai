@@ -37,42 +37,9 @@ import FlashcardView from '@/components/flashcard-view'
 import QuizView from '@/components/quiz-view'
 import MindMapView from '@/components/mindmap-view'
 import PodcastView from '@/components/podcast-view'
+import PresentationView from '@/components/presentation-view'
 import { KeyWall } from '@/components/KeyWall'
-
-interface Document {
-    id: number
-    title: string
-    file_type: string
-    status: string
-    file_path: string
-    error_message?: string
-    embedding_provider?: string
-    embedding_model?: string
-}
-
-interface Workspace {
-    id: number
-    name: string
-    documents: Document[]
-    embedding_provider: string
-    embedding_model: string
-    llm_provider: string
-    llm_model: string
-    ollama_base_url: string
-}
-
-interface AppSettings {
-    llm_provider?: string
-    openai_api_key?: string
-    openai_model?: string
-    embedding_provider?: string
-    embedding_model?: string
-    ollama_base_url?: string
-}
-
-type ApiErrorData = {
-    detail?: string
-}
+import type { Workspace, AppSettings, Document, ApiErrorData } from '@/types'
 
 export default function StudyPage() {
     const router = useRouter()
@@ -617,42 +584,48 @@ export default function StudyPage() {
                     onValueChange={setActiveTab}
                     className="flex flex-col h-full"
                 >
-                    <div className="border-b border-border px-4 pt-3 bg-card">
-                        <TabsList className="grid w-full grid-cols-7 mb-2">
+                    <div className="border-b border-border px-4 pt-3 bg-card overflow-hidden">
+                        <TabsList className="flex w-full overflow-x-auto justify-start gap-2 mb-2 pb-1 custom-scrollbar">
                             {/* ... triggers ... */}
                             <TabsTrigger
                                 value="chat"
-                                className="flex items-center gap-2"
+                                className="flex items-center gap-2 flex-shrink-0"
                             >
                                 <MessageSquare className="w-4 h-4" /> Chat
                             </TabsTrigger>
                             <TabsTrigger
                                 value="lesson"
-                                className="flex items-center gap-2"
+                                className="flex items-center gap-2 flex-shrink-0"
                             >
                                 <BookOpen className="w-4 h-4" /> Lesson
                             </TabsTrigger>
                             <TabsTrigger
                                 value="flashcards"
-                                className="flex items-center gap-2"
+                                className="flex items-center gap-2 flex-shrink-0"
                             >
                                 <Layers className="w-4 h-4" /> Cards
                             </TabsTrigger>
                             <TabsTrigger
                                 value="quiz"
-                                className="flex items-center gap-2"
+                                className="flex items-center gap-2 flex-shrink-0"
                             >
                                 <BrainCircuit className="w-4 h-4" /> Quiz
                             </TabsTrigger>
                             <TabsTrigger
                                 value="mindmap"
-                                className="flex items-center gap-2"
+                                className="flex items-center gap-2 flex-shrink-0"
                             >
                                 <Network className="w-4 h-4" /> Map
                             </TabsTrigger>
                             <TabsTrigger
+                                value="presentation"
+                                className="flex items-center gap-2 flex-shrink-0"
+                            >
+                                <Layers className="w-4 h-4" /> Slides
+                            </TabsTrigger>
+                            <TabsTrigger
                                 value="podcast"
-                                className="flex items-center gap-2"
+                                className="flex items-center gap-2 flex-shrink-0"
                             >
                                 <Mic className="w-4 h-4" /> Podcast
                             </TabsTrigger>
@@ -710,6 +683,15 @@ export default function StudyPage() {
                     >
                         {activeTab === 'podcast' ? (
                             <PodcastView workspaceId={workspaceId} />
+                        ) : null}
+                    </TabsContent>
+
+                    <TabsContent
+                        value="presentation"
+                        className="flex-1 mt-0 overflow-y-auto bg-muted/30"
+                    >
+                        {activeTab === 'presentation' ? (
+                            <PresentationView workspaceId={workspaceId} />
                         ) : null}
                     </TabsContent>
                 </Tabs>

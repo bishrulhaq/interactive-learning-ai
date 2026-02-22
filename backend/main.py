@@ -15,6 +15,7 @@ from backend.models import (
     GeneratedQuiz,
     GeneratedMindMap,
     GeneratedPodcast,
+    GeneratedPresentation,
 )
 from sqlalchemy import select, desc, func
 from fastapi import BackgroundTasks
@@ -45,6 +46,7 @@ from backend.schemas import (
     AppSettings,
     AppSettingsUpdate,
     GenerateRequest,
+    Presentation,
 )
 from backend.services.settings import get_app_settings, update_app_settings
 from pydantic import BaseModel
@@ -766,6 +768,49 @@ def api_generate_mindmap(request: GenerateRequest, db: Session = Depends(get_db)
     return mind_map
 
 
+@app.post("/generate/presentation", response_model=Presentation)
+def api_generate_presentation(request: GenerateRequest, db: Session = Depends(get_db)):
+    try:
+        validate_workspace_content(request.workspace_id, db)
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    # Check if exists
+    stmt = select(GeneratedPresentation).filter(
+        GeneratedPresentation.workspace_id == request.workspace_id,
+        GeneratedPresentation.topic == request.topic,
+    )
+    existing = db.scalars(stmt).first()
+    if existing:
+        return existing.presentation_content
+
+    # Generate
+    try:
+        from backend.services.generator import generate_presentation
+
+        presentation = generate_presentation(request.topic, request.workspace_id, db)
+    except HTTPException:
+        raise
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.exception("Presentation generation failed")
+        raise HTTPException(status_code=500, detail=str(e))
+
+    # Save
+    db_presentation = GeneratedPresentation(
+        workspace_id=request.workspace_id,
+        topic=request.topic,
+        presentation_content=presentation.model_dump(),
+    )
+    db.add(db_presentation)
+    db.commit()
+
+    return presentation
+
+
 @app.post("/generate/podcast", response_model=Podcast)
 def api_generate_podcast(
     request: GeneratePodcastRequest,
@@ -1277,6 +1322,12 @@ def get_existing_content(workspace_id: int, topic: str, db: Session = Depends(ge
             GeneratedMindMap.topic == topic,
         )
     )
+    presentation = db.scalar(
+        select(GeneratedPresentation).filter(
+            GeneratedPresentation.workspace_id == workspace_id,
+            GeneratedPresentation.topic == topic,
+        )
+    )
     podcast = db.scalar(
         select(GeneratedPodcast).filter(
             GeneratedPodcast.workspace_id == workspace_id,
@@ -1315,5 +1366,6 @@ def get_existing_content(workspace_id: int, topic: str, db: Session = Depends(ge
         "flashcards": flashcards.flashcards if flashcards else None,
         "quiz": quiz.quiz_content if quiz else None,
         "mindmap": mindmap.mindmap_content if mindmap else None,
+        "presentation": presentation.presentation_content if presentation else None,
         "podcast": podcast_response,
     }

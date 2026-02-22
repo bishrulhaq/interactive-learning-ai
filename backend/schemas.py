@@ -142,3 +142,15 @@ class AppSettingsUpdate(BaseModel):
     enable_vision_processing: Optional[bool] = None
     vision_provider: Optional[str] = None
     ollama_vision_model: Optional[str] = None
+
+
+class PresentationSlide(BaseModel):
+    title: str
+    content: str
+    bullet_points: List[str]
+    speaker_notes: str
+
+
+class Presentation(BaseModel):
+    title: str
+    slides: List[PresentationSlide]

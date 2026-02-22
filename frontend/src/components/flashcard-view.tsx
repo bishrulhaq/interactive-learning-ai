@@ -6,15 +6,8 @@ import { Button } from '@/components/ui/button'
 import { Loader2, RefreshCw } from 'lucide-react'
 import api from '@/lib/api'
 import type { AxiosError } from 'axios'
+import type { Flashcard, ApiErrorData } from '@/types'
 
-interface Flashcard {
-    front: string
-    back: string
-}
-
-type ApiErrorData = {
-    detail?: string
-}
 export default function FlashcardView({
     workspaceId,
     initialTopic = 'Key Concepts'

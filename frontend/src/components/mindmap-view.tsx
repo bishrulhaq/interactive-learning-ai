@@ -18,19 +18,7 @@ import dagre from 'dagre'
 import { Button } from '@/components/ui/button'
 import { Loader2, RefreshCw } from 'lucide-react'
 import api from '@/lib/api'
-
-// Define the shape of our data from API
-interface MindMapNodeData {
-    id: string
-    label: string
-    type: string
-}
-
-interface MindMapEdgeData {
-    source: string
-    target: string
-    label: string
-}
+import type { MindMapEdgeData, MindMapNodeData } from '@/types'
 
 const nodeWidth = 180
 const nodeHeight = 60

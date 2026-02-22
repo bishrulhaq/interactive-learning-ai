@@ -1,6 +1,6 @@
 from typing import Optional
 from sqlalchemy.orm import Session
-from backend.schemas import LessonPlan, FlashcardSet, Quiz, MindMap
+from backend.schemas import LessonPlan, FlashcardSet, Quiz, MindMap, Presentation
 from langchain_openai import ChatOpenAI
 from langchain_ollama import ChatOllama
 from pydantic import SecretStr
@@ -221,6 +221,36 @@ def generate_mind_map(topic: str, workspace_id: int, db: Session) -> MindMap:
                 "Create a mind map with 10-15 nodes based on the context to visualize the relationships between key concepts. Return a list of nodes and edges.",
             ),
             ("user", "Context: {context}\n\nTopic: {topic}\n\nGenerate mind map:"),
+        ]
+    )
+
+    chain = prompt | structured_llm
+    return chain.invoke({"context": context, "topic": topic})
+
+
+def generate_presentation(topic: str, workspace_id: int, db: Session) -> Presentation:
+    from backend.services.rag import search_documents
+
+    # Fetch context
+    chunks = search_documents(topic, workspace_id, db, k=15)
+
+    if chunks:
+        selected_chunks = random.sample(chunks, min(len(chunks), 10))
+    else:
+        selected_chunks = []
+
+    context = "\n".join([c.content for c in selected_chunks])
+
+    llm = get_llm(db, workspace_id)
+    structured_llm = llm.with_structured_output(Presentation)
+
+    prompt = ChatPromptTemplate.from_messages(
+        [
+            (
+                "system",
+                "Create a professional, text-only presentation with 5-10 slides based strictly on the provided context. Include a title, brief content paragraph, bullet points, and speaker notes for each slide.",
+            ),
+            ("user", "Context: {context}\n\nTopic: {topic}\n\nGenerate presentation:"),
         ]
     )
 
